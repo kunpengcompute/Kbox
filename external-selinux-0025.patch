@@ -1,0 +1,46 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff --git a/libselinux/src/getpeercon.c b/libselinux/src/getpeercon.c
+index 3a77a2de..1a5b26f3 100644
+--- a/libselinux/src/getpeercon.c
++++ b/libselinux/src/getpeercon.c
+@@ -14,33 +14,17 @@
+ int getpeercon_raw(int fd, char ** context)
+ {
+ 	char *buf;
++	char log[] = "unconfined";
+ 	socklen_t size;
+-	ssize_t ret;
+-
++	(void)fd;
+ 	size = INITCONTEXTLEN + 1;
+ 	buf = malloc(size);
+ 	if (!buf)
+ 		return -1;
+ 	memset(buf, 0, size);
+-
+-	ret = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, buf, &size);
+-	if (ret < 0 && errno == ERANGE) {
+-		char *newbuf;
+-
+-		newbuf = realloc(buf, size);
+-		if (!newbuf)
+-			goto out;
+-
+-		buf = newbuf;
+-		memset(buf, 0, size);
+-		ret = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, buf, &size);
+-	}
+-      out:
+-	if (ret < 0)
+-		free(buf);
+-	else
+-		*context = buf;
+-	return ret;
++	memcpy(buf, log, sizeof(log));
++	*context = buf;
++	return 0;
+ }
+ 
+ hidden_def(getpeercon_raw)
