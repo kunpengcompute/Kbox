@@ -1,0 +1,13 @@
+[Unit]
+Description=Pckbox Service
+After=multi-user.target pckbox-init.service
+StartLimitIntervalSec=3
+StartLimitBurst=1
+
+[Service]
+ExecStart=/usr/bin/Kbox osfusionservice /home/Kbox
+Restart=always
+RestartSec=3s
+
+[Install]
+WantedBy=graphical.target

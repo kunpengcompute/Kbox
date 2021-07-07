@@ -1,0 +1,26 @@
+#  SPDX-License-Identifier: LGPL-2.1+
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+
+# This unit gets pulled automatically into multi-user.target by
+# systemd-rc-local-generator if /etc/rc.local is executable.
+[Unit]
+Description=Kunpeng PCKbox Kbox Init
+After=user-1000.slice
+
+
+[Service]
+Type=simple
+User=Kbox
+ExecStart=/usr/bin/Kbox_init
+TimeoutStartSec=10
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
