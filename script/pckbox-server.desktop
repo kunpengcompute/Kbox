@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Pckbox
+Exec=systemctl start --user pckbox-server.service
+Type=Application
+NoDisplay=true
