@@ -1,0 +1,130 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -uprN frameworks_av_old/camera/cameraserver/Android.mk frameworks_av_new/camera/cameraserver/Android.mk
+--- frameworks_av_old/camera/cameraserver/Android.mk	2020-07-16 22:40:21.372542024 +0800
++++ frameworks_av_new/camera/cameraserver/Android.mk	2020-07-16 22:41:25.000542868 +0800
+@@ -33,7 +33,8 @@ LOCAL_SHARED_LIBRARIES := \
+ 	android.hardware.camera.device@3.2
+ 
+ LOCAL_MODULE:= cameraserver
+-LOCAL_32_BIT_ONLY := true
++#LOCAL_32_BIT_ONLY := true
++LOCAL_32_BIT_ONLY := false
+ 
+ LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
+ 
+diff -uprN frameworks_av_old/drm/drmserver/Android.bp frameworks_av_new/drm/drmserver/Android.bp
+--- frameworks_av_old/drm/drmserver/Android.bp	2020-07-16 22:40:21.380542024 +0800
++++ frameworks_av_new/drm/drmserver/Android.bp	2020-07-16 22:41:25.024542869 +0800
+@@ -40,7 +40,8 @@ cc_binary {
+         "-Werror",
+     ],
+ 
+-    compile_multilib: "32",
++    // compile_multilib: "32",
++    compile_multilib: "first",
+ 
+     init_rc: ["drmserver.rc"],
+ }
+diff -uprN frameworks_av_old/media/libmediaplayerservice/Android.bp frameworks_av_new/media/libmediaplayerservice/Android.bp
+--- frameworks_av_old/media/libmediaplayerservice/Android.bp	2020-07-16 22:40:21.432542024 +0800
++++ frameworks_av_new/media/libmediaplayerservice/Android.bp	2020-07-16 22:41:25.208542871 +0800
+@@ -63,7 +63,8 @@ cc_library_shared {
+ 
+     name: "libmediaplayerservice",
+ 
+-    compile_multilib: "32",
++    // compile_multilib: "32",
++    compile_multilib: "64",
+ 
+     sanitize: {
+         cfi: true,
+diff -uprN frameworks_av_old/media/libmediaplayerservice/tests/Android.bp frameworks_av_new/media/libmediaplayerservice/tests/Android.bp
+--- frameworks_av_old/media/libmediaplayerservice/tests/Android.bp	2020-07-16 22:40:21.436542024 +0800
++++ frameworks_av_new/media/libmediaplayerservice/tests/Android.bp	2020-07-16 22:41:25.216542871 +0800
+@@ -15,7 +15,8 @@ cc_test {
+         "android.hardware.drm@1.1",
+     ],
+ 
+-    compile_multilib: "32",
++    // compile_multilib: "32",
++    compile_multilib: "64",
+ 
+     cflags: [
+         "-Werror",
+diff -uprN frameworks_av_old/media/mediaserver/Android.mk frameworks_av_new/media/mediaserver/Android.mk
+--- frameworks_av_old/media/mediaserver/Android.mk	2020-07-16 22:40:21.480542025 +0800
++++ frameworks_av_new/media/mediaserver/Android.mk	2020-07-16 22:41:25.448542874 +0800
+@@ -32,7 +32,8 @@ LOCAL_C_INCLUDES := \
+         frameworks/av/services/mediaresourcemanager \
+ 
+ LOCAL_MODULE:= mediaserver
+-LOCAL_32_BIT_ONLY := true
++#LOCAL_32_BIT_ONLY := true
++LOCAL_32_BIT_ONLY := false
+ 
+ LOCAL_INIT_RC := mediaserver.rc
+ 
+diff --git frameworks_av_old/media/libstagefright/colorconversion/SoftwareRenderer.cpp frameworks_av_new/media/libstagefright/colorconversion/SoftwareRenderer.cpp
+index 657a05b..970449e 100644
+--- frameworks_av_old/media/libstagefright/colorconversion/SoftwareRenderer.cpp
++++ frameworks_av_new/media/libstagefright/colorconversion/SoftwareRenderer.cpp
+@@ -120,6 +120,7 @@ void SoftwareRenderer::resetFormatIfChanged(
+     size_t bufHeight = mCropHeight;
+ 
+     // hardware has YUV12 and RGBA8888 support, so convert known formats
++    if(false)
+     {
+         switch (mColorFormat) {
+             case OMX_COLOR_FormatYUV420Planar:
+diff -uprN frameworks_av_old/services/mediacodec/Android.mk frameworks_av_new/services/mediacodec/Android.mk
+--- frameworks_av_old/services/mediacodec/Android.mk	2020-07-16 22:40:21.532542026 +0800
++++ frameworks_av_new/services/mediacodec/Android.mk	2020-07-16 22:41:25.644542877 +0800
+@@ -51,6 +51,7 @@ LOCAL_MODULE := android.hardware.media.o
+ LOCAL_MODULE_RELATIVE_PATH := hw
+ LOCAL_VENDOR_MODULE := true
+ LOCAL_32_BIT_ONLY := true
++#LOCAL_32_BIT_ONLY := false
+ # Since this is 32-bit-only module, only 32-bit version of the codecs are installed.
+ # TODO(b/72343507): eliminate the need for manually adding .vendor suffix. This should be done
+ # by the build system.
+diff --git a/services/mediacodec/seccomp_policy/mediacodec-arm.policy b/services/mediacodec/seccomp_policy/mediacodec-arm.policy
+index 6ec8895787..12c267fc2c 100644
+--- a/services/mediacodec/seccomp_policy/mediacodec-arm.policy
++++ b/services/mediacodec/seccomp_policy/mediacodec-arm.policy
+@@ -54,5 +54,9 @@ fstatat64: 1
+ ugetrlimit: 1
+ getdents64: 1
+ getrandom: 1
++uname: 1
++mkdir: 1
++mkdirat: 1
++renameat: 1
+ 
+ @include /system/etc/seccomp_policy/crash_dump.arm.policy
+diff -uprN frameworks_av_old/services/mediadrm/Android.mk frameworks_av_new/services/mediadrm/Android.mk
+--- frameworks_av_old/services/mediadrm/Android.mk	2020-07-16 22:40:21.532542026 +0800
++++ frameworks_av_new/services/mediadrm/Android.mk	2020-07-16 22:41:25.644542877 +0800
+@@ -43,6 +43,8 @@ ifneq ($(TARGET_ENABLE_MEDIADRM_64), tru
+ LOCAL_32_BIT_ONLY := true
+ endif
+ 
++LOCAL_32_BIT_ONLY := false
++
+ LOCAL_INIT_RC := mediadrmserver.rc
+ 
+ include $(BUILD_EXECUTABLE)
+diff -uprN frameworks_av_old/services/mediaresourcemanager/Android.mk frameworks_av_new/services/mediaresourcemanager/Android.mk
+--- frameworks_av_old/services/mediaresourcemanager/Android.mk	2020-07-16 22:40:21.532542026 +0800
++++ frameworks_av_new/services/mediaresourcemanager/Android.mk	2020-07-16 22:41:25.648542877 +0800
+@@ -8,7 +8,8 @@ LOCAL_SHARED_LIBRARIES := libmedia libme
+ 
+ LOCAL_MODULE:= libresourcemanagerservice
+ 
+-LOCAL_32_BIT_ONLY := true
++#LOCAL_32_BIT_ONLY := true
++LOCAL_32_BIT_ONLY := false
+ 
+ LOCAL_C_INCLUDES += \
+     frameworks/av/include

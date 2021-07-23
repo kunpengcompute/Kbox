@@ -1,0 +1,29 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -uprN system_vold_old/cryptfs.cpp system_vold_new/cryptfs.cpp
+--- system_vold_old/cryptfs.cpp	2020-07-16 22:53:18.228552339 +0800
++++ system_vold_new/cryptfs.cpp	2020-07-16 22:53:38.648552610 +0800
+@@ -2944,5 +2944,8 @@ void cryptfs_clear_password()
+ int cryptfs_isConvertibleToFBE()
+ {
+     struct fstab_rec* rec = fs_mgr_get_entry_for_mount_point(fstab_default, DATA_MNT_POINT);
++    if (!rec) {
++        return 0;
++    }
+     return fs_mgr_is_convertible_to_fbe(rec) ? 1 : 0;
+ }
+diff -uprN system_vold_old/IdleMaint.cpp system_vold_new/IdleMaint.cpp
+--- system_vold_old/IdleMaint.cpp	2020-07-16 22:53:18.224552339 +0800
++++ system_vold_new/IdleMaint.cpp	2020-07-16 22:53:38.648552610 +0800
+@@ -141,6 +141,10 @@ static void addFromFstab(std::list<std::
+ }
+ 
+ void Trim(const android::sp<android::os::IVoldTaskListener>& listener) {
++    if (true) {
++        (void) listener;
++        return;
++    }
+     acquire_wake_lock(PARTIAL_WAKE_LOCK, kWakeLock);
+ 
+     // Collect both fstab and vold volumes

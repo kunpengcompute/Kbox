@@ -1,0 +1,32 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -Nurp a/include/hardware/gralloc1.h b/include/hardware/gralloc1.h
+--- a/include/hardware/gralloc1.h	2021-04-21 09:41:03.152378004 +0800
++++ b/include/hardware/gralloc1.h	2021-04-21 20:16:51.010271556 +0800
+@@ -158,7 +158,8 @@ typedef enum {
+     GRALLOC1_FUNCTION_VALIDATE_BUFFER_SIZE = 23,
+     GRALLOC1_FUNCTION_GET_TRANSPORT_SIZE = 24,
+     GRALLOC1_FUNCTION_IMPORT_BUFFER = 25,
+-    GRALLOC1_LAST_FUNCTION = 25,
++    GRALLOC1_FUNCTION_LOCK_ENCTURBO = 26,
++    GRALLOC1_LAST_FUNCTION = 26,
+ } gralloc1_function_descriptor_t;
+ 
+ typedef enum {
+@@ -1041,6 +1042,15 @@ typedef int32_t /*gralloc1_error_t*/ (*G
+         gralloc1_device_t* device, buffer_handle_t buffer,
+         int32_t* outReleaseFence);
+ 
++// For EncTurbo
++typedef int32_t /*gralloc1_error_t*/ (*GRALLOC1_PFN_LOCK_ENCTURBO)(
++        gralloc1_device_t* device, buffer_handle_t buffer,
++        uint64_t /*gralloc1_producer_usage_t*/ producerUsage,
++        uint64_t /*gralloc1_consumer_usage_t*/ consumerUsage,
++        const gralloc1_rect_t* accessRegion, void** outData,
++        int32_t acquireFence);
++
++
+ __END_DECLS
+ 
+ #endif

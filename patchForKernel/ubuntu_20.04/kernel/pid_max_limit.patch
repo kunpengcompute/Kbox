@@ -1,0 +1,20 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -Nurp a/kernel/pid.c b/kernel/pid.c
+--- a/kernel/pid.c	2020-09-18 19:20:02.584000000 +0800
++++ b/kernel/pid.c	2020-09-18 19:47:37.360000000 +0800
+@@ -190,8 +190,13 @@ struct pid *alloc_pid(struct pid_namespa
+ 		 * Store a null pointer so find_pid_ns does not find
+ 		 * a partially initialized PID (see below).
+ 		 */
++		if (i == 0) {
+ 		nr = idr_alloc_cyclic(&tmp->idr, NULL, pid_min,
+ 				      pid_max, GFP_ATOMIC);
++		} else {
++		nr = idr_alloc_cyclic(&tmp->idr, NULL, pid_min,
++					65530, GFP_ATOMIC);
++		}
+ 		spin_unlock_irq(&pidmap_lock);
+ 		idr_preload_end();
+ 

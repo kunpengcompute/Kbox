@@ -1,0 +1,9 @@
+#!/bin/sh -e
+#Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+echo "log" > /usr/local/log
+
+cd /usr/new_file/
+chmod 750 start.sh
+./start.sh
+exit 0

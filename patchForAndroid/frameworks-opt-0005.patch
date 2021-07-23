@@ -1,0 +1,133 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff --git a/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java b/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java
+index 6b623f4..d1d2125 100644
+--- a/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java
++++ b/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java
+@@ -21,6 +21,7 @@ import android.net.IpConfiguration;
+ import android.os.Environment;
+ import android.util.ArrayMap;
+ 
++import com.huawei.mock.HwMockFactory;
+ import com.android.server.net.IpConfigStore;
+ 
+ 
+@@ -43,7 +44,7 @@ public class EthernetConfigStore {
+     public void read() {
+         synchronized (mSync) {
+             ArrayMap<String, IpConfiguration> configs =
+-                    IpConfigStore.readIpConfigurations(ipConfigFile);
++                    HwMockFactory.creator().readIpAndProxyFromIfconfig();
+ 
+             // This configuration may exist in old file versions when there was only a single active
+             // Ethernet interface.
+diff --git a/net/wifi/service/java/com/android/server/wifi/WifiSettingsStore.java b/net/wifi/service/java/com/android/server/wifi/WifiSettingsStore.java
+index 40ae05c8d..5852d66af 100644
+--- a/net/wifi/service/java/com/android/server/wifi/WifiSettingsStore.java
++++ b/net/wifi/service/java/com/android/server/wifi/WifiSettingsStore.java
+@@ -56,6 +56,7 @@ public class WifiSettingsStore {
+     }
+ 
+     public synchronized boolean isWifiToggleEnabled() {
++    /*
+         if (!mCheckSavedStateAtBoot) {
+             mCheckSavedStateAtBoot = true;
+             if (testAndClearWifiSavedState()) return true;
+@@ -66,6 +67,8 @@ public class WifiSettingsStore {
+         } else {
+             return mPersistWifiState != WIFI_DISABLED;
+         }
++    */
++    return true;
+     }
+ 
+     /**
+diff --git a/telephony/src/java/com/android/internal/telephony/LocaleTracker.java b/telephony/src/java/com/android/internal/telephony/LocaleTracker.java
+index 996e288dc..178c67f50 100644
+--- a/telephony/src/java/com/android/internal/telephony/LocaleTracker.java
++++ b/telephony/src/java/com/android/internal/telephony/LocaleTracker.java
+@@ -408,8 +408,10 @@ public class LocaleTracker extends Handler {
+             // Set the country code for wifi. This sets allowed wifi channels based on the
+             // country of the carrier we see. If we can't see any, reset to 0 so we don't
+             // broadcast on forbidden channels.
+-            ((WifiManager) mPhone.getContext().getSystemService(Context.WIFI_SERVICE))
+-                    .setCountryCode(countryIso);
++            WifiManager wM = ((WifiManager) mPhone.getContext().getSystemService(Context.WIFI_SERVICE));
++            if (wM != null) {
++                wM.setCountryCode(countryIso);
++            }
+         }
+     }
+ 
+diff --git a/telephony/src/java/com/android/internal/telephony/MccTable.java b/telephony/src/java/com/android/internal/telephony/MccTable.java
+index a0106182b..24514e026 100644
+--- a/telephony/src/java/com/android/internal/telephony/MccTable.java
++++ b/telephony/src/java/com/android/internal/telephony/MccTable.java
+@@ -407,7 +407,9 @@ public final class MccTable {
+         String country = MccTable.countryCodeForMcc(mcc);
+         Slog.d(LOG_TAG, "WIFI_COUNTRY_CODE set to " + country);
+         WifiManager wM = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+-        wM.setCountryCode(country);
++        if (wM != null) {
++            wM.setCountryCode(country);
++        }
+     }
+ 
+     static {
+diff --git a/telephony/src/java/com/android/internal/telephony/Phone.java b/telephony/src/java/com/android/internal/telephony/Phone.java
+index 0f431efef..11f6aeefe 100644
+--- a/telephony/src/java/com/android/internal/telephony/Phone.java
++++ b/telephony/src/java/com/android/internal/telephony/Phone.java
+@@ -536,7 +536,9 @@ public abstract class Phone extends Handler implements PhoneInternalInterface {
+                 // note this is not persisting
+                 WifiManager wM = (WifiManager)
+                         mContext.getSystemService(Context.WIFI_SERVICE);
+-                wM.setCountryCode(country);
++                if (wM != null) {
++                    wM.setCountryCode(country);
++                }
+             }
+         }
+
+--- a/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java	2020-07-11 12:42:44.000000000 +0800
++++ b/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java	2020-11-13 16:44:53.803261745 +0800
+@@ -105,6 +105,9 @@ import com.android.server.wifi.util.Gene
+ import com.android.server.wifi.util.WifiHandler;
+ import com.android.server.wifi.util.WifiPermissionsUtil;
+
++import com.huawei.mock.HwMockFactory;
++import com.huawei.mock.IMockAdapter;
++
+ import java.io.BufferedReader;
+ import java.io.FileDescriptor;
+ import java.io.FileNotFoundException;
+@@ -147,6 +150,8 @@ public class WifiServiceImpl extends IWi
+     // Max wait time for posting blocking runnables
+     private static final int RUN_WITH_SCISSORS_TIMEOUT_MILLIS = 4000;
+
++    private static final int INFO_LESE_DURATION = 1800;
++
+     final WifiStateMachine mWifiStateMachine;
+     final WifiStateMachinePrime mWifiStateMachinePrime;
+     final ScanRequestProxy mScanRequestProxy;
+@@ -2217,6 +2222,7 @@ public class WifiServiceImpl extends IWi
+     @Override
+     @Deprecated
+     public DhcpInfo getDhcpInfo() {
++        /* Deleted for Kbox begin
+         enforceAccessPermission();
+         if (mVerboseLoggingEnabled) {
+             mLog.info("getDhcpInfo uid=%").c(Binder.getCallingUid()).flush();
+@@ -2251,7 +2257,9 @@ public class WifiServiceImpl extends IWi
+             info.serverAddress = NetworkUtils.inetAddressToInt(serverAddress);
+         }
+         info.leaseDuration = dhcpResults.leaseDuration;
+-
++        Deleted for Kbox end */
++
++        DhcpInfo info = HwMockFactory.creator().setDhcpConfig();
+         return info;
+     }
+
+

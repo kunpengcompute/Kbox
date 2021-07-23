@@ -1,0 +1,757 @@
+ Mesa 3-D graphics library
+ Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+
+
+ Permission is hereby granted, free of charge, to any person obtaining a
+ copy of this software and associated documentation files (the "Software"),
+ to deal in the Software without restriction, including without limitation
+ the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to whom the
+ Software is furnished to do so, subject to the following conditions:#
+ 
+ The above copyright notice and this permission notice shall be included
+ in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ DEALINGS IN THE SOFTWARE.
+
+
+
+diff -uprN mesa_old/src/gbm/main/gbm.c mesa_new/src/gbm/main/gbm.c
+--- mesa_old/src/gbm/main/gbm.c	2020-09-14 23:33:06.884362980 +0800
++++ mesa_new/src/gbm/main/gbm.c	2021-04-21 22:09:47.216180580 +0800
+@@ -566,6 +566,21 @@ gbm_bo_map(struct gbm_bo *bo,
+                           flags, stride, map_data);
+ }
+ 
++GBM_EXPORT void *
++gbm_bo_map_native(struct gbm_bo *bo,
++              uint32_t x, uint32_t y,
++              uint32_t width, uint32_t height,
++              uint32_t flags, uint32_t *stride, void **map_data)
++{
++   if (!bo || width == 0 || height == 0 || !stride || !map_data) {
++      errno = EINVAL;
++      return NULL;
++   }
++
++   return bo->gbm->bo_map(bo, x, y, width, height,
++                          flags, stride, map_data);
++}
++
+ /**
+  * Unmap a previously mapped region of a gbm buffer object
+  *
+diff -uprN mesa_old/src/gbm/main/gbm.h mesa_new/src/gbm/main/gbm.h
+--- mesa_old/src/gbm/main/gbm.h	2020-09-14 23:33:06.884362980 +0800
++++ mesa_new/src/gbm/main/gbm.h	2021-04-21 21:46:54.059444623 +0800
+@@ -334,6 +334,11 @@ gbm_bo_map(struct gbm_bo *bo,
+            uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+            uint32_t flags, uint32_t *stride, void **map_data);
+ 
++void *
++gbm_bo_map_native(struct gbm_bo *bo,
++           uint32_t x, uint32_t y, uint32_t width, uint32_t height,
++           uint32_t flags, uint32_t *stride, void **map_data);
++
+ void
+ gbm_bo_unmap(struct gbm_bo *bo, void *map_data);
+ 
+diff -urN old/Android.common.mk new/Android.common.mk
+--- old/Android.common.mk	2020-11-23 14:04:02.704137300 -0500
++++ new/Android.common.mk	2021-04-10 06:35:56.000000000 -0400
+@@ -32,7 +32,6 @@
+ MESA_VERSION := $(shell cat $(MESA_TOP)/VERSION)
+ LOCAL_CFLAGS += \
+ 	-Wno-error \
+-	-Werror=incompatible-pointer-types \
+ 	-Wno-unused-parameter \
+ 	-Wno-pointer-arith \
+ 	-Wno-missing-field-initializers \
+@@ -122,7 +121,7 @@
+ LOCAL_PROPRIETARY_MODULE := true
+ 
+ # uncomment to keep the debug symbols
+-#LOCAL_STRIP_MODULE := false
++LOCAL_STRIP_MODULE := false
+ 
+ ifeq ($(strip $(LOCAL_MODULE_TAGS)),)
+ LOCAL_MODULE_TAGS := optional
+diff -urN old/Android.mk new/Android.mk
+--- old/Android.mk	2020-11-23 14:04:02.704137300 -0500
++++ new/Android.mk	2021-04-10 06:35:56.000000000 -0400
+@@ -98,7 +98,7 @@
+   $(if $(filter $(MESA_ANDROID_MAJOR_VERSION), 4 5 6 7), \
+     $(warning Unsupported LLVM version in Android $(MESA_ANDROID_MAJOR_VERSION)),) \
+   $(eval LOCAL_CFLAGS += -DLLVM_AVAILABLE -DLLVM_IS_SHARED=1 -DMESA_LLVM_VERSION_STRING=\"3.9\") \
+-  $(eval LOCAL_SHARED_LIBRARIES += libLLVM)
++  $(eval LOCAL_SHARED_LIBRARIES += libLLVM70)
+ endef
+ 
+ # add subdirectories
+diff -urN old/src/amd/Android.common.mk new/src/amd/Android.common.mk
+--- old/src/amd/Android.common.mk	2020-11-23 14:04:02.758137500 -0500
++++ new/src/amd/Android.common.mk	2021-04-10 06:35:56.000000000 -0400
+@@ -54,7 +54,7 @@
+ $(intermediates)/common/sid_tables.h: $(SID_TABLES) $(SID_TABLES_INPUTS)
+ 	@mkdir -p $(dir $@)
+ 	@echo "Gen Header: $(PRIVATE_MODULE) <= $(notdir $(@))"
+-	$(hide) $(MESA_PYTHON2) $(SID_TABLES) $(SID_TABLES_INPUTS) > $@ || ($(RM) $@; false)
++	$(hide) $(MESA_PYTHON3) $(SID_TABLES) $(SID_TABLES_INPUTS) > $@ || ($(RM) $@; false)
+ 
+ AMDGFXREGS := $(LOCAL_PATH)/registers/makeregheader.py
+ 
+@@ -67,7 +67,7 @@
+ $(intermediates)/common/amdgfxregs.h: $(AMDGFXREGS) $(AMDGFXREGS_INPUTS)
+ 	@mkdir -p $(dir $@)
+ 	@echo "Gen Header: $(PRIVATE_MODULE) <= $(notdir $(@))"
+-	$(hide) $(MESA_PYTHON2) $(AMDGFXREGS) $(AMDGFXREGS_INPUTS) --sort address --guard AMDGFXREGS_H > $@ || ($(RM) $@; false)
++	$(hide) $(MESA_PYTHON3) $(AMDGFXREGS) $(AMDGFXREGS_INPUTS) --sort address --guard AMDGFXREGS_H > $@ || ($(RM) $@; false)
+ 
+ GEN10_FORMAT_TABLE_INPUTS := \
+ 	$(MESA_TOP)/src/util/format/u_format.csv \
+@@ -81,7 +81,7 @@
+ $(intermediates)/common/gfx10_format_table.c: $(GEN10_FORMAT_TABLE) $(GEN10_FORMAT_TABLE_INPUTS) $(GEN10_FORMAT_TABLE_DEP)
+ 	@mkdir -p $(dir $@)
+ 	@echo "Gen Header: $(PRIVATE_MODULE) <= $(notdir $(@))"
+-	$(hide) $(MESA_PYTHON2) $(GEN10_FORMAT_TABLE) $(GEN10_FORMAT_TABLE_INPUTS) > $@ || ($(RM) $@; false)
++	$(hide) $(MESA_PYTHON3) $(GEN10_FORMAT_TABLE) $(GEN10_FORMAT_TABLE_INPUTS) > $@ || ($(RM) $@; false)
+ 
+ LOCAL_C_INCLUDES := \
+ 	$(MESA_TOP)/include \
+diff -urN old/src/amd/Android.compiler.mk new/src/amd/Android.compiler.mk
+--- old/src/amd/Android.compiler.mk	2020-11-23 14:04:02.758137500 -0500
++++ new/src/amd/Android.compiler.mk	2021-04-10 06:35:56.000000000 -0400
+@@ -55,17 +55,17 @@
+ $(intermediates)/compiler/aco_opcodes.h: $(ACO_OPCODES_H_SCRIPT) $(ACO_DEPS)
+ 	@mkdir -p $(dir $@)
+ 	@echo "Gen Header: $(PRIVATE_MODULE) <= $(notdir $(@))"
+-	$(hide) $(MESA_PYTHON2) $(ACO_OPCODES_H_SCRIPT) > $@ || ($(RM) $@; false)
++	$(hide) $(MESA_PYTHON3) $(ACO_OPCODES_H_SCRIPT) > $@ || ($(RM) $@; false)
+ 
+ $(intermediates)/compiler/aco_opcodes.cpp: $(ACO_OPCODES_CPP_SCRIPT) $(ACO_DEPS)
+ 	@mkdir -p $(dir $@)
+ 	@echo "Gen Header: $(PRIVATE_MODULE) <= $(notdir $(@))"
+-	$(hide) $(MESA_PYTHON2) $(ACO_OPCODES_CPP_SCRIPT) > $@ || ($(RM) $@; false)
++	$(hide) $(MESA_PYTHON3) $(ACO_OPCODES_CPP_SCRIPT) > $@ || ($(RM) $@; false)
+ 
+ $(intermediates)/compiler/aco_builder.h: $(ACO_BUILDER_H_SCRIPT) $(ACO_DEPS)
+ 	@mkdir -p $(dir $@)
+ 	@echo "Gen Header: $(PRIVATE_MODULE) <= $(notdir $(@))"
+-	$(hide) $(MESA_PYTHON2) $(ACO_BUILDER_H_SCRIPT) > $@ || ($(RM) $@; false)
++	$(hide) $(MESA_PYTHON3) $(ACO_BUILDER_H_SCRIPT) > $@ || ($(RM) $@; false)
+ 
+ LOCAL_C_INCLUDES := \
+ 	$(MESA_TOP)/src/amd \
+diff -urN old/src/amd/compiler/aco_instruction_selection.cpp new/src/amd/compiler/aco_instruction_selection.cpp
+--- old/src/amd/compiler/aco_instruction_selection.cpp	2020-11-23 14:04:02.771137500 -0500
++++ new/src/amd/compiler/aco_instruction_selection.cpp	2021-04-10 06:35:56.000000000 -0400
+@@ -123,6 +123,9 @@
+ 
+ Temp get_ssa_temp(struct isel_context *ctx, nir_ssa_def *def)
+ {
++   if (ctx == NULL || def == NULL) {
++      return Temp();
++   }
+    assert(ctx->allocated[def->index].id());
+    return ctx->allocated[def->index];
+ }
+diff -urN old/src/amd/llvm/ac_llvm_util.c new/src/amd/llvm/ac_llvm_util.c
+--- old/src/amd/llvm/ac_llvm_util.c	2020-11-23 14:04:02.777137500 -0500
++++ new/src/amd/llvm/ac_llvm_util.c	2021-04-10 06:35:56.000000000 -0400
+@@ -39,6 +39,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ 
++extern void LLVMInitializeAMDGPUDisassembler();
+ static void ac_init_llvm_target()
+ {
+ 	LLVMInitializeAMDGPUTargetInfo();
+diff -urN old/src/amd/vulkan/Android.mk new/src/amd/vulkan/Android.mk
+--- old/src/amd/vulkan/Android.mk	2020-11-23 14:04:02.782137600 -0500
++++ new/src/amd/vulkan/Android.mk	2021-04-10 06:35:56.000000000 -0400
+@@ -155,7 +155,8 @@
+ 	libmesa_amd_common \
+ 	libmesa_radv_common \
+ 	libmesa_vulkan_util \
+-	libmesa_aco
++	libmesa_aco \
++	libmesa_dricore
+ 
+ LOCAL_SHARED_LIBRARIES += $(RADV_SHARED_LIBRARIES) libz libsync liblog
+ 
+diff -urN old/src/amd/vulkan/radv_device.c new/src/amd/vulkan/radv_device.c
+--- old/src/amd/vulkan/radv_device.c	2020-11-23 14:04:02.785137700 -0500
++++ new/src/amd/vulkan/radv_device.c	2021-05-12 06:00:13.197734510 -0400
+@@ -6373,6 +6373,9 @@
+ 	buffer->shareable = vk_find_struct_const(pCreateInfo->pNext,
+ 						 EXTERNAL_MEMORY_BUFFER_CREATE_INFO) != NULL;
+ 
++	buffer->unpack_buffer_for_ct = NULL; 
++	buffer->unpack_mem_for_ct = NULL;
++
+ 	if (pCreateInfo->flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT) {
+ 		buffer->bo = device->ws->buffer_create(device->ws,
+ 		                                       align64(buffer->size, 4096),
+@@ -6399,7 +6402,17 @@
+ 
+ 	if (!buffer)
+ 		return;
+-
++   
++	if (buffer->unpack_mem_for_ct) {
++		radv_free_memory(device, NULL, buffer->unpack_mem_for_ct);
++    buffer->unpack_mem_for_ct = NULL;	
++	}
++  
++	if (buffer->unpack_buffer_for_ct) {
++		radv_destroy_buffer(device, NULL, buffer->unpack_buffer_for_ct);
++    buffer->unpack_buffer_for_ct = NULL;
++	}
++ 
+ 	radv_destroy_buffer(device, pAllocator, buffer);
+ }
+ 
+diff -urN old/src/amd/vulkan/radv_formats.c new/src/amd/vulkan/radv_formats.c
+--- old/src/amd/vulkan/radv_formats.c	2020-11-23 14:04:02.786137600 -0500
++++ new/src/amd/vulkan/radv_formats.c	2021-04-10 06:35:56.000000000 -0400
+@@ -625,7 +625,8 @@
+ 	return physical_device->rad_info.family == CHIP_VEGA10 ||
+ 	       physical_device->rad_info.family == CHIP_RAVEN ||
+ 	       physical_device->rad_info.family == CHIP_RAVEN2 ||
+-	       physical_device->rad_info.family == CHIP_STONEY;
++	       physical_device->rad_info.family == CHIP_STONEY ||
++		   physical_device->rad_info.family == CHIP_POLARIS10;
+ }
+ 
+ static void
+diff -urN old/src/amd/vulkan/radv_image.c new/src/amd/vulkan/radv_image.c
+--- old/src/amd/vulkan/radv_image.c	2020-11-23 14:04:02.786137600 -0500
++++ new/src/amd/vulkan/radv_image.c	2021-05-12 05:03:17.774818865 -0400
+@@ -1378,6 +1378,63 @@
+ 	vk_free2(&device->vk.alloc, pAllocator, image);
+ }
+ 
++static bool
++radv_device_hw_support_etc(struct radv_physical_device* physical_device)
++{
++	return physical_device->rad_info.family == CHIP_VEGA10 ||
++		physical_device->rad_info.family == CHIP_RAVEN ||
++		physical_device->rad_info.family == CHIP_RAVEN2 ||
++		physical_device->rad_info.family == CHIP_STONEY;
++}
++
++static bool
++radv_need_translate_etc2(VkFormat format) {
++	switch (format) {
++	case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK:	
++	case VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK:	
++	case VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK:	
++	case VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK:	
++	case VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK:	
++	case VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK:	
++	case VK_FORMAT_EAC_R11_UNORM_BLOCK:	
++	case VK_FORMAT_EAC_R11_SNORM_BLOCK:	
++	case VK_FORMAT_EAC_R11G11_UNORM_BLOCK:	
++	case VK_FORMAT_EAC_R11G11_SNORM_BLOCK:
++		return true;
++	default:
++		return false;
++	}
++}
++
++VkFormat
++radv_translate_etc(VkFormat format)
++{
++	switch (format) {
++	case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK:
++		return VK_FORMAT_R8G8B8A8_UNORM;
++	case VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK:
++		return VK_FORMAT_R8G8B8A8_SRGB;
++	case VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK:
++		return VK_FORMAT_R8G8B8A8_UNORM;
++	case VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK:
++		return VK_FORMAT_R8G8B8A8_SRGB;
++	case VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK:
++		return VK_FORMAT_R8G8B8A8_UNORM;
++	case VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK:
++		return  VK_FORMAT_R8G8B8A8_SRGB;
++	case VK_FORMAT_EAC_R11_UNORM_BLOCK:
++		return  VK_FORMAT_R8_UNORM;
++	case VK_FORMAT_EAC_R11_SNORM_BLOCK:
++		return VK_FORMAT_R8_SRGB;
++	case VK_FORMAT_EAC_R11G11_UNORM_BLOCK:
++		return VK_FORMAT_R8G8_UNORM;
++	case VK_FORMAT_EAC_R11G11_SNORM_BLOCK:
++		return VK_FORMAT_R8G8_SRGB;
++	default:
++		return format;
++	}
++}
++
+ VkResult
+ radv_image_create(VkDevice _device,
+ 		  const struct radv_image_create_info *create_info,
+@@ -1418,11 +1475,17 @@
+ 	image->info.levels = pCreateInfo->mipLevels;
+ 	image->info.num_channels = vk_format_get_nr_components(format);
+ 
++	image->istranslate = false;
+ 	image->vk_format = format;
++	image->vk_srcFormat = format;
+ 	image->tiling = pCreateInfo->tiling;
+ 	image->usage = pCreateInfo->usage;
+ 	image->flags = pCreateInfo->flags;
+ 	image->plane_count = plane_count;
++	if (!radv_device_hw_support_etc(device->physical_device) && radv_need_translate_etc2(format)) {
++	  image->istranslate = true;
++    image->vk_format = radv_translate_etc(format);
++	}
+ 
+ 	image->exclusive = pCreateInfo->sharingMode == VK_SHARING_MODE_EXCLUSIVE;
+ 	if (pCreateInfo->sharingMode == VK_SHARING_MODE_CONCURRENT) {
+@@ -1603,6 +1666,9 @@
+ 	iview->level_count = radv_get_levelCount(image, range);
+ 
+ 	iview->vk_format = pCreateInfo->format;
++	if (!radv_device_hw_support_etc(device->physical_device) && radv_need_translate_etc2(pCreateInfo->format)) {
++		iview->vk_format = radv_translate_etc(pCreateInfo->format);
++	}
+ 
+ 	/* If the image has an Android external format, pCreateInfo->format will be
+ 	 * VK_FORMAT_UNDEFINED. */
+diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.c
+--- old/src/amd/vulkan/radv_meta_copy.c	2020-11-23 14:04:02.788137700 -0500
++++ new/src/amd/vulkan/radv_meta_copy.c	2021-05-12 05:54:08.056633123 -0400
+@@ -23,6 +23,8 @@
+ 
+ #include "radv_meta.h"
+ #include "vk_format.h"
++#include "main/formats.h"
++#include "main/texcompress_etc.h"
+ 
+ static VkExtent3D
+ meta_image_block_size(const struct radv_image *image)
+@@ -104,6 +106,28 @@
+ 	};
+ }
+ 
++static size_t
++radv_get_texel_count(const VkBufferImageCopy* pRegions, uint32_t regionCount, struct radv_image* image)
++{
++	size_t w = 0;
++	size_t h = 0;
++
++	for (int i = 0; i < regionCount; i++) {
++		const VkExtent3D bufferExtent = {
++			.width  = pRegions[i].bufferRowLength ?
++			pRegions[i].bufferRowLength : pRegions[i].imageExtent.width,
++			.height = pRegions[i].bufferImageHeight ?
++			pRegions[i].bufferImageHeight : pRegions[i].imageExtent.height,
++		};
++		const VkExtent3D buf_extent_el =
++			meta_region_extent_el(image, image->type, &bufferExtent);
++		w += buf_extent_el.width;
++		h += buf_extent_el.height;	
++	}
++	int bs = vk_format_get_blocksize(image->vk_format);
++	return w * h * bs;
++}
++
+ static bool
+ image_is_renderable(struct radv_device *device, struct radv_image *image)
+ {
+@@ -120,6 +144,58 @@
+ 	return true;
+ }
+ 
++static mesa_format
++radv_translate_etc_to_mesa_format(VkFormat format)
++{
++	switch (format) {
++	case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK:
++		return MESA_FORMAT_ETC2_RGB8;
++	case VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK:
++		return MESA_FORMAT_ETC2_SRGB8;
++	case VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK:
++		return MESA_FORMAT_ETC2_RGB8_PUNCHTHROUGH_ALPHA1;
++	case VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK:
++		return MESA_FORMAT_ETC2_SRGB8_PUNCHTHROUGH_ALPHA1;
++	case VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK:
++		return MESA_FORMAT_ETC2_RGBA8_EAC;
++	case VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK:
++		return MESA_FORMAT_ETC2_SRGB8_ALPHA8_EAC;
++	case VK_FORMAT_EAC_R11_UNORM_BLOCK:
++		return MESA_FORMAT_ETC2_R11_EAC;
++	case VK_FORMAT_EAC_R11_SNORM_BLOCK:
++		return MESA_FORMAT_ETC2_SIGNED_R11_EAC;
++	case VK_FORMAT_EAC_R11G11_UNORM_BLOCK:
++		return MESA_FORMAT_ETC2_RG11_EAC;
++	case VK_FORMAT_EAC_R11G11_SNORM_BLOCK:
++		return MESA_FORMAT_ETC2_SIGNED_RG11_EAC;
++	default:
++		return MESA_FORMAT_ETC2_RGB8;
++	}
++}
++static mesa_format 
++radv_translate_vkformat_to_mesa_format(VkFormat format)
++{
++	switch (format) {
++    case VK_FORMAT_R8G8B8_UNORM:
++		return MESA_FORMAT_RGB_UNORM8;
++	case VK_FORMAT_R8G8B8A8_UNORM:
++		return MESA_FORMAT_R8G8B8A8_UNORM;
++	case VK_FORMAT_R8G8B8_SRGB:
++		return MESA_FORMAT_BGR_SRGB8;
++	case VK_FORMAT_R8G8B8A8_SRGB:
++		return MESA_FORMAT_R8G8B8A8_SRGB;
++	case VK_FORMAT_R8_UNORM:
++		return MESA_FORMAT_R_UNORM8;
++	case VK_FORMAT_R8_SRGB:
++		return MESA_FORMAT_R_SRGB8;
++	case VK_FORMAT_R8G8_UNORM:
++		return MESA_FORMAT_RG_UNORM8;
++	case VK_FORMAT_R8G8_SRGB:
++		return MESA_FORMAT_RG_SNORM8;
++	default:
++		return MESA_FORMAT_RGB_UNORM8;
++	}
++}
+ static void
+ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
+                           struct radv_buffer* buffer,
+@@ -128,10 +204,17 @@
+                           uint32_t regionCount,
+                           const VkBufferImageCopy* pRegions)
+ {
++	struct radv_device* device = cmd_buffer->device;
++	VkBuffer dstBuffer;
++	struct radv_buffer* radvDstBuffer = buffer;
++	VkDeviceMemory memory_h;
++	void* pDstData = NULL;
++	void* pSrcData = NULL;
+ 	bool cs = cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE;
+ 	struct radv_meta_saved_state saved_state;
+ 	bool old_predicating;
+ 
++
+ 	/* The Vulkan 1.0 spec says "dstImage must have a sample count equal to
+ 	 * VK_SAMPLE_COUNT_1_BIT."
+ 	 */
+@@ -148,7 +231,62 @@
+ 	 */
+ 	old_predicating = cmd_buffer->state.predicating;
+ 	cmd_buffer->state.predicating = false;
+-
++	if (image->istranslate) {
++		//Create translate dstBuffer
++		pSrcData = device->ws->buffer_map(buffer->bo) + buffer->offset;
++		int dstBufferSize = radv_get_texel_count(pRegions, regionCount, image);
++		if(VK_SUCCESS != radv_CreateBuffer(radv_device_to_handle(device),
++			&(VkBufferCreateInfo) {
++			  .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
++				.flags = buffer->flags,
++				.size = dstBufferSize,
++				.usage = buffer->usage,
++				.sharingMode = VK_SHARING_MODE_EXCLUSIVE 
++      }, 
++      NULL, 
++      &dstBuffer)) {
++			return;
++		}
++   
++    RADV_FROM_HANDLE(radv_buffer, _dstbuffer, dstBuffer);
++		buffer->unpack_buffer_for_ct = _dstbuffer;
++	
++  	//get tranlated dstBuffer memory size
++		VkMemoryRequirements memoryRequirements;
++		radv_GetBufferMemoryRequirements(radv_device_to_handle(device), dstBuffer, &memoryRequirements);
++		int memory_type_index = -1;
++		for (int i = 0; i < device->physical_device->memory_properties.memoryTypeCount; ++i) {
++			bool is_local = !!(device->physical_device->memory_properties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
++			if (is_local) {
++				memory_type_index = i;
++				break;
++			}
++		}
++		if(VK_SUCCESS != radv_AllocateMemory(radv_device_to_handle(device),
++			&(VkMemoryAllocateInfo) {
++			  .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
++				.pNext = NULL,
++				.allocationSize = memoryRequirements.size,
++				.memoryTypeIndex = memory_type_index,
++		  },
++			NULL,
++			& memory_h)) {
++			return;
++		}
++   
++    RADV_FROM_HANDLE(radv_device_memory, _mem, memory_h);
++		buffer->unpack_mem_for_ct = _mem;
++   
++		if(VK_SUCCESS != radv_BindBufferMemory(
++			radv_device_to_handle(device),
++			dstBuffer,
++			memory_h,
++			0)) {
++			return;
++		}
++		radv_MapMemory(radv_device_to_handle(device), memory_h, 0, dstBufferSize, 0, &pDstData);	
++	}
++	void* realDstData = pDstData;
+ 	for (unsigned r = 0; r < regionCount; r++) {
+ 
+ 		/**
+@@ -205,11 +343,26 @@
+ 			img_bsurf.current_layout = VK_IMAGE_LAYOUT_GENERAL;
+ 		}
+ 
++		uint32_t offset = pRegions[r].bufferOffset;
++		if (image->istranslate) {
++			// translate vkFormat to MESA format
++			mesa_format dstFormat = radv_translate_vkformat_to_mesa_format(image->vk_format);
++			mesa_format srcFormat = radv_translate_etc_to_mesa_format(image->vk_srcFormat);
++			bool bgra = false;
++			void * realSrcData = pSrcData;
++			realSrcData += pRegions[r].bufferOffset;
++			unsigned dst_stride = _mesa_format_row_stride(dstFormat, pRegions[r].imageExtent.width);
++			unsigned src_stride =_mesa_format_row_stride(srcFormat, bufferExtent.width);
++      _mesa_unpack_etc2_format(realDstData, dst_stride, realSrcData , src_stride, bufferExtent.width, bufferExtent.height, srcFormat, bgra);
++			RADV_FROM_HANDLE(radv_buffer, tmp, dstBuffer);
++      radvDstBuffer = tmp;
++			offset = realDstData - pDstData;
++		}
+ 		struct radv_meta_blit2d_buffer buf_bsurf = {
+ 			.bs = img_bsurf.bs,
+ 			.format = img_bsurf.format,
+-			.buffer = buffer,
+-			.offset = pRegions[r].bufferOffset,
++			.buffer = radvDstBuffer,
++			.offset = offset,
+ 			.pitch = buf_extent_el.width,
+ 		};
+ 
+@@ -241,6 +394,8 @@
+ 			 */
+ 			buf_bsurf.offset += buf_extent_el.width *
+ 			                    buf_extent_el.height * buf_bsurf.bs;
++			realDstData += buf_extent_el.width *
++			                    buf_extent_el.height * buf_bsurf.bs;
+ 			img_bsurf.layer++;
+ 			if (image->type == VK_IMAGE_TYPE_3D)
+ 				slice_3d++;
+@@ -248,6 +403,12 @@
+ 				slice_array++;
+ 		}
+ 	}
++	
++	if (image->istranslate){
++		device->ws->buffer_unmap(buffer->bo);
++    pSrcData = NULL;
++		radv_UnmapMemory(radv_device_to_handle(device), memory_h);
++	}
+ 
+ 	/* Restore conditional rendering. */
+ 	cmd_buffer->state.predicating = old_predicating;
+diff -urN old/src/amd/vulkan/radv_nir_lower_ycbcr_textures.c new/src/amd/vulkan/radv_nir_lower_ycbcr_textures.c
+--- old/src/amd/vulkan/radv_nir_lower_ycbcr_textures.c	2020-11-23 14:04:02.788137700 -0500
++++ new/src/amd/vulkan/radv_nir_lower_ycbcr_textures.c	2021-04-10 06:35:56.000000000 -0400
+@@ -231,8 +231,13 @@
+ 	int deref_src_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_deref);
+ 	assert(deref_src_idx >= 0);
+ 	nir_deref_instr *deref = nir_src_as_deref(tex->src[deref_src_idx].src);
+-
++	if (deref == NULL) {
++      return false;
++    }
+ 	nir_variable *var = nir_deref_instr_get_variable(deref);
++	if (var == NULL) {
++      return false;
++    }
+ 	const struct radv_descriptor_set_layout *set_layout =
+ 		layout->set[var->data.descriptor_set].layout;
+ 	const struct radv_descriptor_set_binding_layout *binding =
+diff -urN old/src/amd/vulkan/radv_private.h new/src/amd/vulkan/radv_private.h
+--- old/src/amd/vulkan/radv_private.h	2020-11-23 14:04:02.791137700 -0500
++++ new/src/amd/vulkan/radv_private.h	2021-05-12 05:15:45.332998943 -0400
+@@ -948,6 +948,9 @@
+ 	VkDeviceSize                                 offset;
+ 
+ 	bool shareable;
++ 
++  struct radv_buffer* unpack_buffer_for_ct;
++  struct radv_device_memory* unpack_mem_for_ct;
+ };
+ 
+ enum radv_dynamic_state_bits {
+@@ -1796,6 +1799,7 @@
+ 	 * of the actual surface formats.
+ 	 */
+ 	VkFormat vk_format;
++	VkFormat vk_srcFormat;
+ 	VkImageAspectFlags aspects;
+ 	VkImageUsageFlags usage; /**< Superset of VkImageCreateInfo::usage. */
+ 	struct ac_surf_info info;
+@@ -1808,6 +1812,7 @@
+ 	unsigned queue_family_mask;
+ 	bool exclusive;
+ 	bool shareable;
++	bool istranslate;
+ 
+ 	/* Set when bound */
+ 	struct radeon_winsys_bo *bo;
+diff -urN old/src/amd/vulkan/radv_shader_info.c new/src/amd/vulkan/radv_shader_info.c
+--- old/src/amd/vulkan/radv_shader_info.c	2020-11-23 14:04:02.792137600 -0500
++++ new/src/amd/vulkan/radv_shader_info.c	2021-04-10 06:35:56.000000000 -0400
+@@ -29,6 +29,9 @@
+ static void mark_sampler_desc(const nir_variable *var,
+ 			      struct radv_shader_info *info)
+ {
++	if (var == NULL || info == NULL) {
++		return;
++	}
+ 	info->desc_set_used_mask |= (1u << var->data.descriptor_set);
+ }
+ 
+diff -urN old/src/compiler/nir/nir.h new/src/compiler/nir/nir.h
+--- old/src/compiler/nir/nir.h	2020-11-23 14:04:02.834137700 -0500
++++ new/src/compiler/nir/nir.h	2021-04-10 06:35:56.000000000 -0400
+@@ -1470,14 +1470,14 @@
+ static inline nir_variable *
+ nir_deref_instr_get_variable(const nir_deref_instr *instr)
+ {
+-   while (instr->deref_type != nir_deref_type_var) {
++   while (instr && instr->deref_type != nir_deref_type_var) {
+       if (instr->deref_type == nir_deref_type_cast)
+          return NULL;
+ 
+       instr = nir_deref_instr_parent(instr);
+    }
+ 
+-   return instr->var;
++   return instr ? instr->var : NULL;
+ }
+ 
+ bool nir_deref_instr_has_indirect(nir_deref_instr *instr);
+diff -urN old/src/egl/Android.mk new/src/egl/Android.mk
+--- old/src/egl/Android.mk	2020-11-23 14:04:02.861137900 -0500
++++ new/src/egl/Android.mk	2021-04-10 06:35:56.000000000 -0400
+@@ -59,7 +59,8 @@
+ 	libhardware \
+ 	liblog \
+ 	libcutils \
+-	libsync
++	libsync \
++    libgbm
+ 
+ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 27; echo $$?), 0)
+ LOCAL_C_INCLUDES += \
+diff -urN old/src/gallium/auxiliary/target-helpers/drm_helper.h new/src/gallium/auxiliary/target-helpers/drm_helper.h
+--- old/src/gallium/auxiliary/target-helpers/drm_helper.h	2020-11-23 14:04:02.923138000 -0500
++++ new/src/gallium/auxiliary/target-helpers/drm_helper.h	2021-04-10 06:35:56.000000000 -0400
+@@ -65,19 +65,6 @@
+ 
+ #endif
+ 
+-#ifdef GALLIUM_NOUVEAU
+-#include "nouveau/drm/nouveau_drm_public.h"
+-
+-struct pipe_screen *
+-pipe_nouveau_create_screen(int fd, const struct pipe_screen_config *config)
+-{
+-   struct pipe_screen *screen;
+-
+-   screen = nouveau_drm_screen_create(fd);
+-   return screen ? debug_screen_wrap(screen) : NULL;
+-}
+-
+-#else
+ 
+ struct pipe_screen *
+ pipe_nouveau_create_screen(int fd, const struct pipe_screen_config *config)
+@@ -86,7 +73,6 @@
+    return NULL;
+ }
+ 
+-#endif
+ 
+ #ifdef GALLIUM_KMSRO
+ #include "kmsro/drm/kmsro_drm_public.h"
+diff -urN old/src/gallium/drivers/nouveau/Android.mk new/src/gallium/drivers/nouveau/Android.mk
+--- old/src/gallium/drivers/nouveau/Android.mk	2020-11-23 14:04:02.983138000 -0500
++++ new/src/gallium/drivers/nouveau/Android.mk	1969-12-31 19:00:00.000000000 -0500
+@@ -1,57 +0,0 @@
+-# Mesa 3-D graphics library
+-#
+-# Copyright (C) 2011 Chia-I Wu <olvaffe@gmail.com>
+-# Copyright (C) 2011 LunarG Inc.
+-#
+-# Permission is hereby granted, free of charge, to any person obtaining a
+-# copy of this software and associated documentation files (the "Software"),
+-# to deal in the Software without restriction, including without limitation
+-# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+-# and/or sell copies of the Software, and to permit persons to whom the
+-# Software is furnished to do so, subject to the following conditions:
+-#
+-# The above copyright notice and this permission notice shall be included
+-# in all copies or substantial portions of the Software.
+-#
+-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+-# DEALINGS IN THE SOFTWARE.
+-
+-LOCAL_PATH := $(call my-dir)
+-
+-# get C_SOURCES
+-include $(LOCAL_PATH)/Makefile.sources
+-
+-include $(CLEAR_VARS)
+-
+-LOCAL_SRC_FILES := \
+-	$(C_SOURCES) \
+-	$(NV30_C_SOURCES) \
+-	$(NV50_CODEGEN_SOURCES) \
+-	$(NV50_C_SOURCES) \
+-	$(NVC0_CODEGEN_SOURCES) \
+-	$(NVC0_C_SOURCES)
+-
+-LOCAL_C_INCLUDES := \
+-	$(MESA_TOP)/include \
+-	$(call generated-sources-dir-for,STATIC_LIBRARIES,libmesa_nir,,)/nir \
+-	$(MESA_TOP)/src/compiler/nir \
+-	$(MESA_TOP)/src/mapi \
+-	$(MESA_TOP)/src/mesa
+-
+-LOCAL_STATIC_LIBRARIES := libmesa_nir
+-LOCAL_SHARED_LIBRARIES := libdrm_nouveau
+-LOCAL_MODULE := libmesa_pipe_nouveau
+-
+-include $(GALLIUM_COMMON_MK)
+-include $(BUILD_STATIC_LIBRARY)
+-
+-ifneq ($(HAVE_GALLIUM_NOUVEAU),)
+-GALLIUM_TARGET_DRIVERS += nouveau
+-$(eval GALLIUM_LIBS += $(LOCAL_MODULE) libmesa_winsys_nouveau)
+-$(eval GALLIUM_SHARED_LIBS += $(LOCAL_SHARED_LIBRARIES))
+-endif
+diff -urN old/src/mesa/main/texcompress_etc.c new/src/mesa/main/texcompress_etc.c
+--- old/src/mesa/main/texcompress_etc.c	2020-11-23 14:04:03.319139000 -0500
++++ new/src/mesa/main/texcompress_etc.c	2021-04-10 06:35:56.000000000 -0400
+@@ -752,6 +752,7 @@
+ 		  dst[2] = tmp;
+ 		  dst[3] = 255;
+ 	       }
++          dst[3] = 255;
+ 
+                dst += comps;
+             }

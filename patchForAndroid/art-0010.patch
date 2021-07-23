@@ -1,0 +1,18 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -uprN art_old/dex2oat/Android.bp art_new/dex2oat/Android.bp
+--- art_old/dex2oat/Android.bp	2020-07-16 22:31:00.220534573 +0800
++++ art_new/dex2oat/Android.bp	2020-07-16 22:31:24.952534901 +0800
+@@ -103,7 +103,8 @@ cc_defaults {
+     target: {
+         android: {
+             // Use the 32-bit version of dex2oat on devices
+-            compile_multilib: "prefer32",
++            // compile_multilib: "prefer32",
++            compile_multilib: "first",
+         },
+     },
+     header_libs: [
+
+ 

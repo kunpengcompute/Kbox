@@ -1,0 +1,383 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -Nurp packages_apps_old/Settings/src/com/android/settings/AirplaneModeEnabler.java packages_apps_new/Settings/src/com/android/settings/AirplaneModeEnabler.java
+--- packages_apps_old/Settings/src/com/android/settings/AirplaneModeEnabler.java	2021-02-02 17:23:35.112526772 +0800
++++ packages_apps_new/Settings/src/com/android/settings/AirplaneModeEnabler.java	2021-02-02 17:37:06.225698257 +0800
+@@ -107,7 +107,6 @@ public class AirplaneModeEnabler {
+         // Post the intent
+         Intent intent = new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+         intent.putExtra("state", enabling);
+-        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+     }
+ 
+     /**
+
+diff -Nurp packages_apps_old/Settings/src/com/android/settings/bluetooth/BluetoothEnabler.java packages_apps_new/Settings/src/com/android/settings/bluetooth/BluetoothEnabler.java
+--- packages_apps_old/Settings/src/com/android/settings/bluetooth/BluetoothEnabler.java	2021-02-04 16:44:48.461831920 +0800
++++ packages_apps_new/Settings/src/com/android/settings/bluetooth/BluetoothEnabler.java	2021-02-04 16:38:27.573831920 +0800
+@@ -170,6 +170,10 @@ public final class BluetoothEnabler impl
+
+     @Override
+     public boolean onSwitchToggled(boolean isChecked) {
++        //  set onSwitchToggled false
++        if (!maybeEnforceRestrictions()) {
++            return false;
++        }
+         if (maybeEnforceRestrictions()) {
+             triggerParentPreferenceCallback(isChecked);
+             return true;
+
+diff -Nurp packages_apps_old/Settings/src/com/android/settings/print/PrintSettingPreferenceController.java packages_apps_new/Settings/src/com/android/settings/print/PrintSettingPreferenceController.java
+--- packages_apps_old/Settings/src/com/android/settings/print/PrintSettingPreferenceController.java	2021-02-04 16:45:02.729831920 +0800
++++ packages_apps_new/Settings/src/com/android/settings/print/PrintSettingPreferenceController.java 2021-02-04 16:41:59.973831920 +0800
+@@ -26,6 +26,7 @@ import android.print.PrintManager;
+ import android.printservice.PrintServiceInfo;
+ import android.support.v7.preference.Preference;
+ import android.support.v7.preference.PreferenceScreen;
++import android.util.Log;
+
+ import com.android.settings.R;
+ import com.android.settings.core.BasePreferenceController;
+@@ -34,6 +35,7 @@ import com.android.settingslib.core.life
+ import com.android.settingslib.core.lifecycle.events.OnStart;
+ import com.android.settingslib.core.lifecycle.events.OnStop;
+
++import java.util.ArrayList;
+ import java.util.List;
+
+ /**
+@@ -70,11 +72,20 @@ public class PrintSettingPreferenceContr
+
+     @Override
+     public void onStart() {
++        // mPrintManager is null, not response
++        Log.e("PrintSettingPreferenceController", "mPrintManager" + mPrintManager + "mPrintManager is null " + (mPrintManager==null));
++        if (mPrintManager == null) {
++            return;
++        }
+         mPrintManager.addPrintJobStateChangeListener(this);
+     }
+
+     @Override
+     public void onStop() {
++        // mPrintManager is null, not response
++        if (mPrintManager == null) {
++            return;
++        }
+         mPrintManager.removePrintJobStateChangeListener(this);
+     }
+
+@@ -92,8 +103,9 @@ public class PrintSettingPreferenceContr
+
+     @Override
+     public CharSequence getSummary() {
+-        final List<PrintJob> printJobs = mPrintManager.getPrintJobs();
+-
++        // mPrintManager is null, to avoid null pointer
++        final List<PrintJob> printJobs = new ArrayList<>();
++        //final List<PrintJob> printJobs = mPrintManager.getPrintJobs();
+         int numActivePrintJobs = 0;
+         if (printJobs != null) {
+             for (PrintJob job : printJobs) {
+@@ -107,8 +119,9 @@ public class PrintSettingPreferenceContr
+             return mContext.getResources().getQuantityString(
+                     R.plurals.print_jobs_summary, numActivePrintJobs, numActivePrintJobs);
+         } else {
+-            final List<PrintServiceInfo> services =
+-                    mPrintManager.getPrintServices(PrintManager.ENABLED_SERVICES);
++            final List<PrintServiceInfo> services = new ArrayList<>();
++            // final List<PrintServiceInfo> services =
++            //         mPrintManager.getPrintServices(PrintManager.ENABLED_SERVICES);
+             if (services == null || services.isEmpty()) {
+                 return mContext.getText(R.string.print_settings_summary_no_service);
+             } else {
+
+diff -Nurp packages_apps_old/Gallery2/src/com/android/gallery3d/glrenderer/TiledTexture.java packages_apps_new/Gallery2/src/com/android/gallery3d/glrenderer/TiledTexture.java
+--- packages_apps_old/Gallery2/src/com/android/gallery3d/glrenderer/TiledTexture.java	2021-02-07 17:14:05.075751792 +0800
++++ packages_apps_new/Gallery2/src/com/android/gallery3d/glrenderer/TiledTexture.java	2021-02-07 17:14:35.739751792 +0800
+@@ -37,7 +37,8 @@ import java.util.ArrayList;
+ // upload the whole bitmap but we reduce the time of uploading each tile
+ // so it make the animation more smooth and prevents jank.
+ public class TiledTexture implements Texture {
+-    private static final int CONTENT_SIZE = 254;
++    // set CONTENT_SIZE 3 times incase some image too large to paint
++    private static final int CONTENT_SIZE = 254 * 3;
+     private static final int BORDER_SIZE = 1;
+     private static final int TILE_SIZE = CONTENT_SIZE + 2 * BORDER_SIZE;
+     private static final int INIT_CAPACITY = 8;
+
+diff -Nurp wifi_old/Settings/src/com/android/settings/wifi/WifiEnabler.java wifi_new/Settings/src/com/android/settings/wifi/WifiEnabler.java
+--- wifi_old/Settings/src/com/android/settings/wifi/WifiEnabler.java	2021-02-10 10:04:53.772891283 +0800
++++ wifi_new/Settings/src/com/android/settings/wifi/WifiEnabler.java	2021-02-10 10:06:28.548891283 +0800
+@@ -29,6 +29,7 @@ import android.os.UserHandle;
+ import android.os.UserManager;
+ import android.provider.Settings;
+ import android.support.annotation.VisibleForTesting;
++import android.util.Log;
+ import android.widget.Toast;
+
+ import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
+@@ -195,6 +196,13 @@ public class WifiEnabler implements Swit
+
+     @Override
+     public boolean onSwitchToggled(boolean isChecked) {
++        // set onSwitchToggled always true, shiled wifi controls
++        Log.e("onSwitchToggled ", "hwmock isChecked status is:" + isChecked);
++        boolean isWifiOnFlag = true;
++        if (isWifiOnFlag) {
++            return true;
++        }
++
+         //Do nothing if called as a result of a state machine event
+         if (mStateMachineEvent) {
+             return true;
+diff --git a/Settings/src/com/android/settings/password/ScreenLockType.java b/Settings/src/com/android/settings/password/ScreenLockType.java
+index 608c8f6576..2517341d6c 100644
+--- a/Settings/src/com/android/settings/password/ScreenLockType.java
++++ b/Settings/src/com/android/settings/password/ScreenLockType.java
+@@ -102,6 +102,8 @@ public enum ScreenLockType {
+     public static ScreenLockType fromKey(String key) {
+         for (ScreenLockType lock : ScreenLockType.values()) {
+             if (lock.preferenceKey.equals(key)) {
++                if (!(key.equals("unlock_set_pattern") || key.equals("unlock_set_pin") ||
++                      key.equals("unlock_set_password")))
+                 return lock;
+             }
+         }
+diff --git a/Settings/res/xml/network_and_internet.xml b/Settings/res/xml/network_and_internet.xml
+--- a/Settings/res/xml/network_and_internet.xml
++++ b/Settings/res/xml/network_and_internet.xml
+@@ -35,18 +35,12 @@
+ 
+     <com.android.settingslib.RestrictedPreference
+         android:key="mobile_network_settings"
+-        android:title="@string/network_settings_title"
+         android:summary="@string/summary_placeholder"
+         android:icon="@drawable/ic_network_cell"
+         android:order="-15"
+         settings:keywords="@string/keywords_more_mobile_networks"
+         settings:userRestriction="no_config_mobile_networks"
+-        settings:useAdminDisabledSummary="true">
+-        <intent
+-            android:action="android.intent.action.MAIN"
+-            android:targetPackage="com.android.phone"
+-            android:targetClass="com.android.phone.MobileNetworkSettings" />
+-    </com.android.settingslib.RestrictedPreference>
++        settings:useAdminDisabledSummary="true" />
+ 
+     <com.android.settingslib.RestrictedPreference
+         android:fragment="com.android.settings.TetherSettings"
+diff --git a/Settings/res/xml/security_settings_picker.xml b/Settings/res/xml/security_settings_picker.xml
+--- a/Settings/res/xml/security_settings_picker.xml
++++ b/Settings/res/xml/security_settings_picker.xml
+@@ -30,17 +30,14 @@
+ 
+     <com.android.settingslib.RestrictedPreference
+             android:key="unlock_set_pattern"
+-            android:title="@string/unlock_set_unlock_pattern_title"
+             android:persistent="false"/>
+ 
+     <com.android.settingslib.RestrictedPreference
+             android:key="unlock_set_pin"
+-            android:title="@string/unlock_set_unlock_pin_title"
+             android:persistent="false"/>
+ 
+     <com.android.settingslib.RestrictedPreference
+             android:key="unlock_set_password"
+-            android:title="@string/unlock_set_unlock_password_title"
+             android:persistent="false"/>
+ 
+     <com.android.settingslib.RestrictedPreference
+diff --git a/Launcher3/src/com/android/launcher3/widget/WidgetsFullSheet.java b/Launcher3/src/com/android/launcher3/widget/WidgetsFullSheet.java
+index e94d81d75..480e74b66 100644
+--- a/Launcher3/src/com/android/launcher3/widget/WidgetsFullSheet.java
++++ b/Launcher3/src/com/android/launcher3/widget/WidgetsFullSheet.java
+@@ -175,6 +175,9 @@ public class WidgetsFullSheet extends BaseWidgetSheet
+                     mRecyclerView.setLayoutFrozen(false);
+                     mAdapter.setApplyBitmapDeferred(false, mRecyclerView);
+                     mOpenCloseAnimator.removeListener(this);
++                    if (mIsOpen != true) {
++                        mIsOpen = true;
++                    }
+                 }
+             });
+             post(() -> {
+diff -uprN a/Settings/AndroidManifest.xml b/Settings/AndroidManifest.xml
+--- a/Settings/AndroidManifest.xml  2021-06-28 17:44:03.085426759 +0800
++++ b/Settings/AndroidManifest.xml  2021-06-28 17:37:09.353442071 +0800
+@@ -173,9 +173,9 @@
+                 <category android:name="android.intent.category.DEFAULT" />
+                 <category android:name="android.intent.category.VOICE_LAUNCH" />
+             </intent-filter>
+-            <intent-filter android:priority="11">
++            <!--<intent-filter android:priority="11">
+                 <action android:name="com.android.settings.action.SETTINGS"/>
+-            </intent-filter>
++            </intent-filter>-->
+             <meta-data android:name="com.android.settings.category"
+                 android:value="com.android.settings.category.ia.homepage"/>
+             <meta-data android:name="com.android.settings.FRAGMENT_CLASS"
+@@ -198,9 +198,9 @@
+                 <action android:name="android.settings.BLUETOOTH_SETTINGS" />
+                 <category android:name="android.intent.category.DEFAULT" />
+             </intent-filter>
+-            <intent-filter android:priority="10">
++            <!--<intent-filter android:priority="10">
+                 <action android:name="com.android.settings.action.SETTINGS"/>
+-            </intent-filter>
++            </intent-filter>-->
+             <meta-data android:name="com.android.settings.FRAGMENT_CLASS"
+                 android:value="com.android.settings.connecteddevice.ConnectedDeviceDashboardFragment"/>
+             <meta-data android:name="com.android.settings.category"
+@@ -2668,9 +2668,9 @@
+                 <category android:name="android.intent.category.VOICE_LAUNCH" />
+                 <category android:name="com.android.settings.SHORTCUT" />
+             </intent-filter>
+-            <intent-filter android:priority="6">
++            <!-- <intent-filter android:priority="6">
+                 <action android:name="com.android.settings.action.SETTINGS" />
+-            </intent-filter>
++            </intent-filter>-->
+             <meta-data android:name="com.android.settings.category"
+                        android:value="com.android.settings.category.ia.homepage" />
+             <meta-data android:name="com.android.settings.FRAGMENT_CLASS"
+diff -uprN a/Settings/res/xml/accessibility_settings.xml b/Settings/res/xml/accessibility_settings.xml
+--- a/Settings/res/xml/accessibility_settings.xml   2021-06-28 19:19:16.801215303 +0800
++++ b/Settings/res/xml/accessibility_settings.xml   2021-06-28 17:37:09.677442059 +0800
+@@ -19,17 +19,17 @@
+         android:title="@string/accessibility_settings"
+         android:persistent="true">
+ 
+-    <Preference
++    <!--<Preference
+             android:key="accessibility_shortcut_preference"
+             android:fragment="com.android.settings.accessibility.AccessibilityShortcutPreferenceFragment"
+-            android:title="@string/accessibility_global_gesture_preference_title"/>
++            android:title="@string/accessibility_global_gesture_preference_title"/>-->
+ 
+     <PreferenceCategory
+             android:key="user_installed_services_category"
+             android:title="@string/user_installed_services_category_title">
+     </PreferenceCategory>
+ 
+-    <PreferenceCategory
++    <!--<PreferenceCategory
+             android:key="screen_reader_category"
+             android:title="@string/screen_reader_category_title">
+ 
+@@ -37,7 +37,7 @@
+                 android:key="tts_settings_preference"
+                 android:fragment="com.android.settings.tts.TextToSpeechSettings"
+                 android:title="@string/tts_settings_title"/>
+-    </PreferenceCategory>
++    </PreferenceCategory>-->
+ 
+     <PreferenceCategory
+             android:key="display_category"
+@@ -77,10 +77,10 @@
+                 android:key="autoclick_preference_screen"
+                 android:title="@string/accessibility_autoclick_preference_title"/>
+ 
+-        <SwitchPreference
++        <!--<SwitchPreference
+                 android:key="toggle_power_button_ends_call_preference"
+                 android:title="@string/accessibility_power_button_ends_call_prerefence_title"
+-                android:persistent="false"/>
++                android:persistent="false"/> -->
+ 
+         <SwitchPreference
+                 android:key="toggle_lock_screen_rotation_preference"
+@@ -94,10 +94,10 @@
+                 android:entryValues="@array/long_press_timeout_selector_values"
+                 android:persistent="false"/>
+ 
+-        <Preference
++        <!--<Preference
+             android:fragment="com.android.settings.accessibility.VibrationSettings"
+             android:key="vibration_preference_screen"
+-            android:title="@string/accessibility_vibration_settings_title" />
++            android:title="@string/accessibility_vibration_settings_title" /> -->
+ 
+     </PreferenceCategory>
+ 
+@@ -105,11 +105,11 @@
+             android:key="audio_and_captions_category"
+             android:title="@string/audio_and_captions_category_title">
+ 
+-        <SwitchPreference
++        <!--<SwitchPreference
+                 android:key="toggle_master_mono"
+                 android:title="@string/accessibility_toggle_master_mono_title"
+                 android:summary="@string/accessibility_toggle_master_mono_summary"
+-                android:persistent="false"/>
++                android:persistent="false"/> -->
+ 
+         <Preference
+                 android:fragment="com.android.settings.accessibility.CaptionPropertiesFragment"
+diff -uprN a/Settings/src/com/android/settings/accessibility/AccessibilitySettings.java b/Settings/src/com/android/settings/accessibility/AccessibilitySettings.java
+--- a/Settings/src/com/android/settings/accessibility/AccessibilitySettings.java    2021-06-28 19:29:44.375362797 +0800
++++ b/Settings/src/com/android/settings/accessibility/AccessibilitySettings.java    2021-06-28 17:37:09.373442070 +0800
+@@ -326,7 +326,7 @@ public class AccessibilitySettings exten
+             handleToggleTextContrastPreferenceClick();
+             return true;
+         } else if (mTogglePowerButtonEndsCallPreference == preference) {
+-            handleTogglePowerButtonEndsCallPreferenceClick();
++            //handleTogglePowerButtonEndsCallPreferenceClick(); //do not display:Press the power button to end the call
+             return true;
+         } else if (mToggleLockScreenRotationPreference == preference) {
+             handleLockScreenRotationPreferenceClick();
+@@ -412,12 +412,12 @@ public class AccessibilitySettings exten
+         mToggleInversionPreference.setOnPreferenceChangeListener(this);
+ 
+         // Power button ends calls.
+-        mTogglePowerButtonEndsCallPreference =
+-                (SwitchPreference) findPreference(TOGGLE_POWER_BUTTON_ENDS_CALL_PREFERENCE);
++        //mTogglePowerButtonEndsCallPreference =
++        //        (SwitchPreference) findPreference(TOGGLE_POWER_BUTTON_ENDS_CALL_PREFERENCE); //do not display
+         if (!KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_POWER)
+                 || !Utils.isVoiceCapable(getActivity())) {
+-            mCategoryToPrefCategoryMap.get(CATEGORY_INTERACTION_CONTROL)
+-                    .removePreference(mTogglePowerButtonEndsCallPreference);
++           // mCategoryToPrefCategoryMap.get(CATEGORY_INTERACTION_CONTROL)
++           //         .removePreference(mTogglePowerButtonEndsCallPreference); //do not display
+         }
+ 
+         // Lock screen rotation.
+@@ -660,7 +660,7 @@ public class AccessibilitySettings exten
+                     Settings.Secure.INCALL_POWER_BUTTON_BEHAVIOR_DEFAULT);
+             final boolean powerButtonEndsCall =
+                     (incallPowerBehavior == Settings.Secure.INCALL_POWER_BUTTON_BEHAVIOR_HANGUP);
+-            mTogglePowerButtonEndsCallPreference.setChecked(powerButtonEndsCall);
++            //mTogglePowerButtonEndsCallPreference.setChecked(powerButtonEndsCall); //do not display
+         }
+ 
+         // Auto-rotate screen
+@@ -673,7 +673,7 @@ public class AccessibilitySettings exten
+         updateDisableAnimationsToggle();
+ 
+         // Master mono
+-        updateMasterMono();
++       // updateMasterMono(); //do not display:Mono audio;
+ 
+         // Long press timeout.
+         final int longPressTimeout = Settings.Secure.getInt(getContentResolver(),
+@@ -682,7 +682,7 @@ public class AccessibilitySettings exten
+         mSelectLongPressTimeoutPreference.setValue(value);
+         mSelectLongPressTimeoutPreference.setSummary(mLongPressTimeoutValueToTitleMap.get(value));
+ 
+-        updateVibrationSummary(mVibrationPreferenceScreen);
++        //updateVibrationSummary(mVibrationPreferenceScreen); //do not display vibrate button
+ 
+         updateFeatureSummary(Settings.Secure.ACCESSIBILITY_CAPTIONING_ENABLED,
+                 mCaptioningPreferenceScreen);
+@@ -695,7 +695,7 @@ public class AccessibilitySettings exten
+ 
+         updateAutoclickSummary(mAutoclickPreferenceScreen);
+ 
+-        updateAccessibilityShortcut(mAccessibilityShortcutPreferenceScreen);
++       // updateAccessibilityShortcut(mAccessibilityShortcutPreferenceScreen); //do not display:Volume shortcut
+     }
+ 
+     private void updateMagnificationSummary(Preference pref) {
+
