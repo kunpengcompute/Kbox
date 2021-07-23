@@ -1,0 +1,98 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -uprN build_make_old/core/clang/config.mk build_make_new/core/clang/config.mk
+--- build_make_old/core/clang/config.mk	2020-07-16 22:34:19.052537213 +0800
++++ build_make_new/core/clang/config.mk	2020-07-16 22:35:54.868538485 +0800
+@@ -4,6 +4,7 @@ LLVM_RTLIB_PATH := $(LLVM_PREBUILTS_PATH
+ 
+ CLANG_TBLGEN := $(BUILD_OUT_EXECUTABLES)/clang-tblgen$(BUILD_EXECUTABLE_SUFFIX)
+ LLVM_TBLGEN := $(BUILD_OUT_EXECUTABLES)/llvm-tblgen$(BUILD_EXECUTABLE_SUFFIX)
++LLVM70_TBLGEN := $(BUILD_OUT_EXECUTABLES)/llvm70-tblgen$(BUILD_EXECUTABLE_SUFFIX)
+ 
+ define convert-to-clang-flags
+ $(strip $(filter-out $(CLANG_CONFIG_UNKNOWN_CFLAGS),$(1)))
+diff -uprN build_make_old/core/product_config.mk build_make_new/core/product_config.mk
+--- build_make_old/core/product_config.mk	2020-07-16 22:34:19.048537213 +0800
++++ build_make_new/core/product_config.mk	2020-07-16 22:35:54.868538485 +0800
+@@ -313,7 +313,7 @@ endif
+ PRODUCT_MANUFACTURER := \
+     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_MANUFACTURER))
+ ifndef PRODUCT_MANUFACTURER
+-  PRODUCT_MANUFACTURER := unknown
++  PRODUCT_MANUFACTURER := Huawei
+ endif
+ 
+ ifeq ($(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_CHARACTERISTICS),)
+
+diff -uprN build_make_old/core/tasks/check_boot_jars/package_whitelist.txt build_make_new/core/tasks/check_boot_jars/package_whitelist.txt
+--- build_make_old/core/tasks/check_boot_jars/package_whitelist.txt	2020-07-16 22:34:19.056537213 +0800
++++ build_make_new/core/tasks/check_boot_jars/package_whitelist.txt	2020-07-16 22:35:54.876538485 +0800
+@@ -201,6 +201,8 @@ javax\.microedition\.khronos\.opengles
+ javax\.microedition\.khronos\.egl
+ 
+ android
++com\.huawei\.mock
++com\.huawei\.mock\..*
+ 
+ ###################################################
+ # apache-xml.jar
+
+diff -uprN build_make_old/target/product/base.mk build_make_new/target/product/base.mk
+--- build_make_old/target/product/base.mk	2020-07-16 22:34:19.060537213 +0800
++++ build_make_new/target/product/base.mk	2020-07-16 22:35:54.896538485 +0800
+@@ -40,6 +40,8 @@ PRODUCT_PACKAGES += \
+     dnsmasq \
+     dpm \
+     framework \
++    hwmock \
++    hwmock.xml \
+     framework-sysconfig.xml \
+     fsck_msdos \
+     hid \
+diff -uprN build_make_old/target/product/core_minimal.mk build_make_new/target/product/core_minimal.mk
+--- build_make_old/target/product/core_minimal.mk	2020-07-16 22:34:19.060537213 +0800
++++ build_make_new/target/product/core_minimal.mk	2020-07-16 22:35:54.892538485 +0800
+@@ -122,7 +122,9 @@ PRODUCT_BOOT_JARS := \
+ ifeq ($(REMOVE_OAHL_FROM_BCP),true)
+ PRODUCT_BOOT_JARS += framework-oahl-backward-compatibility
+ else
+-PRODUCT_BOOT_JARS += org.apache.http.legacy.boot
++PRODUCT_BOOT_JARS += \
++	org.apache.http.legacy.boot \
++	hwmock
+ endif
+ 
+ ifeq ($(REMOVE_ATB_FROM_BCP),true)
+@@ -136,6 +138,7 @@ PRODUCT_SYSTEM_SERVER_JARS := \
+     services \
+     ethernet-service \
+     wifi-service \
++    hwmock \
+     com.android.location.provider \
+ 
+ # The set of packages whose code can be loaded by the system server.
+diff -uprN build_make_old/target/product/core_tiny.mk build_make_new/target/product/core_tiny.mk
+--- build_make_old/target/product/core_tiny.mk	2020-07-16 22:34:19.060537213 +0800
++++ build_make_new/target/product/core_tiny.mk	2020-07-16 22:35:54.896538485 +0800
+@@ -107,7 +107,9 @@ PRODUCT_BOOT_JARS := \
+ ifeq ($(REMOVE_OAHL_FROM_BCP),true)
+ PRODUCT_BOOT_JARS += framework-oahl-backward-compatibility
+ else
+-PRODUCT_BOOT_JARS += org.apache.http.legacy.boot
++PRODUCT_BOOT_JARS += \
++    org.apache.http.legacy.boot \
++    hwmock
+ endif
+ 
+ ifeq ($(REMOVE_ATB_FROM_BCP),true)
+@@ -119,7 +121,8 @@ endif
+ # The order of PRODUCT_SYSTEM_SERVER_JARS matters.
+ PRODUCT_SYSTEM_SERVER_JARS := \
+     services \
+-    wifi-service
++    wifi-service \
++    hwmock
+ 
+ # The set of packages whose code can be loaded by the system server.
+ PRODUCT_SYSTEM_SERVER_APPS += \

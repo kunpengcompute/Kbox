@@ -1,0 +1,1974 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+
+diff -uprN frameworks_base_old/core/java/android/app/ContextImpl.java frameworks_base_new/core/java/android/app/ContextImpl.java
+--- frameworks_base_old/core/java/android/app/ContextImpl.java	2020-07-16 22:42:34.176543787 +0800
++++ frameworks_base_new/core/java/android/app/ContextImpl.java	2020-07-16 22:42:57.664544099 +0800
+@@ -2490,7 +2490,7 @@ class ContextImpl extends Context {
+     }
+ 
+     private void checkMode(int mode) {
+-        if (getApplicationInfo().targetSdkVersion >= Build.VERSION_CODES.N) {
++        if (getApplicationInfo().targetSdkVersion > Build.VERSION_CODES.N) {
+             if ((mode & MODE_WORLD_READABLE) != 0) {
+                 throw new SecurityException("MODE_WORLD_READABLE no longer supported");
+             }
+diff --git a/core/java/android/app/ResourcesManager.java b/core/java/android/app/ResourcesManager.java
+index 30256b42e6a..93115190922 100644
+--- a/core/java/android/app/ResourcesManager.java
++++ b/core/java/android/app/ResourcesManager.java
+@@ -121,11 +121,12 @@ public class ResourcesManager {
+         }
+     }
+ 
++    private static final boolean ENABLE_APK_ASSETS_CACHE = false;
+     /**
+      * The ApkAssets we are caching and intend to hold strong references to.
+      */
+-    private final LruCache<ApkKey, ApkAssets> mLoadedApkAssets = new LruCache<>(3);
+-
++    private final LruCache<ApkKey, ApkAssets> mLoadedApkAssets =
++            (ENABLE_APK_ASSETS_CACHE) ? new LruCache<>(3) : null;
+     /**
+      * The ApkAssets that are being referenced in the wild that we can reuse, even if they aren't
+      * in our LRU cache. Bonus resources :)
+@@ -310,17 +311,21 @@ public class ResourcesManager {
+     private @NonNull ApkAssets loadApkAssets(String path, boolean sharedLib, boolean overlay)
+             throws IOException {
+         final ApkKey newKey = new ApkKey(path, sharedLib, overlay);
+-        ApkAssets apkAssets = mLoadedApkAssets.get(newKey);
+-        if (apkAssets != null) {
+-            return apkAssets;
++        ApkAssets apkAssets = null;
++        if (mLoadedApkAssets != null) {
++            apkAssets = mLoadedApkAssets.get(newKey);
++            if (apkAssets != null) {
++                return apkAssets;
++            }
+         }
+-
+         // Optimistically check if this ApkAssets exists somewhere else.
+         final WeakReference<ApkAssets> apkAssetsRef = mCachedApkAssets.get(newKey);
+         if (apkAssetsRef != null) {
+             apkAssets = apkAssetsRef.get();
+             if (apkAssets != null) {
+-                mLoadedApkAssets.put(newKey, apkAssets);
++                if (mLoadedApkAssets != null) {
++                    mLoadedApkAssets.put(newKey, apkAssets);
++                }
+                 return apkAssets;
+             } else {
+                 // Clean up the reference.
+@@ -335,7 +340,9 @@ public class ResourcesManager {
+         } else {
+             apkAssets = ApkAssets.loadFromPath(path, false /*system*/, sharedLib);
+         }
+-        mLoadedApkAssets.put(newKey, apkAssets);
++        if (mLoadedApkAssets != null) {
++            mLoadedApkAssets.put(newKey, apkAssets);
++        }
+         mCachedApkAssets.put(newKey, new WeakReference<>(apkAssets));
+         return apkAssets;
+     }
+@@ -434,18 +441,22 @@ public class ResourcesManager {
+ 
+             pw.println("ResourcesManager:");
+             pw.increaseIndent();
+-            pw.print("cached apks: total=");
+-            pw.print(mLoadedApkAssets.size());
+-            pw.print(" created=");
+-            pw.print(mLoadedApkAssets.createCount());
+-            pw.print(" evicted=");
+-            pw.print(mLoadedApkAssets.evictionCount());
+-            pw.print(" hit=");
+-            pw.print(mLoadedApkAssets.hitCount());
+-            pw.print(" miss=");
+-            pw.print(mLoadedApkAssets.missCount());
+-            pw.print(" max=");
+-            pw.print(mLoadedApkAssets.maxSize());
++            if (mLoadedApkAssets != null) {
++                pw.print("cached apks: total=");
++                pw.print(mLoadedApkAssets.size());
++                pw.print(" created=");
++                pw.print(mLoadedApkAssets.createCount());
++                pw.print(" evicted=");
++                pw.print(mLoadedApkAssets.evictionCount());
++                pw.print(" hit=");
++                pw.print(mLoadedApkAssets.hitCount());
++                pw.print(" miss=");
++                pw.print(mLoadedApkAssets.missCount());
++                pw.print(" max=");
++                pw.print(mLoadedApkAssets.maxSize());
++            } else {
++                pw.print("cached apks: 0 [cache disabled]");
++            }
+             pw.println();
+ 
+             pw.print("total apks: ");
+diff -uprN frameworks_base_old/core/java/android/app/WindowConfiguration.java frameworks_base_new/core/java/android/app/WindowConfiguration.java
+--- frameworks_base_old/core/java/android/app/WindowConfiguration.java	2020-07-16 22:42:34.184543787 +0800
++++ frameworks_base_new/core/java/android/app/WindowConfiguration.java	2020-07-16 22:42:57.664544099 +0800
+@@ -503,7 +503,8 @@ public class WindowConfiguration impleme
+      * @hide
+      */
+     public static boolean isFloating(int windowingMode) {
+-        return windowingMode == WINDOWING_MODE_FREEFORM || windowingMode == WINDOWING_MODE_PINNED;
++        // return windowingMode == WINDOWING_MODE_FREEFORM || windowingMode == WINDOWING_MODE_PINNED;
++        return windowingMode == WINDOWING_MODE_PINNED;
+     }
+ 
+     /**
+diff -uprN frameworks_base_old/core/java/android/view/ViewRootImpl.java frameworks_base_new/core/java/android/view/ViewRootImpl.java
+--- frameworks_base_old/core/java/android/view/ViewRootImpl.java	2020-07-16 22:42:34.288543788 +0800
++++ frameworks_base_new/core/java/android/view/ViewRootImpl.java	2020-07-16 22:42:58.144544105 +0800
+@@ -988,9 +988,9 @@ public final class ViewRootImpl implemen
+         if (mTranslator != null) return;
+ 
+         // Try to enable hardware acceleration if requested
+-        final boolean hardwareAccelerated =
+-                (attrs.flags & WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED) != 0;
+-
++        //final boolean hardwareAccelerated =
++        //        (attrs.flags & WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED) != 0;
++        final boolean hardwareAccelerated = true;
+         if (hardwareAccelerated) {
+             if (!ThreadedRenderer.isAvailable()) {
+                 return;
+@@ -6578,7 +6578,9 @@ public final class ViewRootImpl implemen
+ 
+         try {
+             final AudioManager audioManager = getAudioManager();
+-
++            if (audioManager == null) {
++                return;
++            }
+             switch (effectId) {
+                 case SoundEffectConstants.CLICK:
+                     audioManager.playSoundEffect(AudioManager.FX_KEY_CLICK);
+diff -uprN frameworks_base_old/core/java/com/android/internal/os/BatteryStatsImpl.java frameworks_base_new/core/java/com/android/internal/os/BatteryStatsImpl.java
+--- frameworks_base_old/core/java/com/android/internal/os/BatteryStatsImpl.java	2020-07-16 22:42:34.316543789 +0800
++++ frameworks_base_new/core/java/com/android/internal/os/BatteryStatsImpl.java	2020-07-16 22:42:58.280544107 +0800
+@@ -11840,7 +11840,7 @@ public class BatteryStatsImpl extends Ba
+                 numWakelocksSetStale++;
+             }
+         }
+-
++/*disable for robox begin
+         // Record whether we've seen a non-zero time (for debugging b/22716723).
+         if (wakelockStats.isEmpty()) {
+             Slog.wtf(TAG, "All kernel wakelocks had time of zero");
+@@ -11850,6 +11850,7 @@ public class BatteryStatsImpl extends Ba
+             Slog.wtf(TAG, "All kernel wakelocks were set stale. new version=" +
+                     wakelockStats.kernelWakelockVersion);
+         }
++disable for robox end*/
+     }
+ 
+     // We use an anonymous class to access these variables,
+diff -uprN frameworks_base_old/core/java/com/android/internal/os/KernelWakelockReader.java frameworks_base_new/core/java/com/android/internal/os/KernelWakelockReader.java
+--- frameworks_base_old/core/java/com/android/internal/os/KernelWakelockReader.java	2020-07-16 22:42:34.320543789 +0800
++++ frameworks_base_new/core/java/com/android/internal/os/KernelWakelockReader.java	2020-07-16 22:42:58.280544107 +0800
+@@ -65,6 +65,7 @@ public class KernelWakelockReader {
+      * @return the updated data.
+      */
+     public final KernelWakelockStats readKernelWakelockStats(KernelWakelockStats staleStats) {
++/* disable for robox begin
+         byte[] buffer = new byte[32*1024];
+         int len;
+         boolean wakeup_sources;
+@@ -114,6 +115,8 @@ public class KernelWakelockReader {
+             }
+         }
+         return parseProcWakelocks(buffer, len, wakeup_sources, staleStats);
++disbale for robox end */
++        return staleStats;
+     }
+ 
+     /**
+diff -uprN frameworks_base_old/core/java/com/android/internal/widget/DecorCaptionView.java frameworks_base_new/core/java/com/android/internal/widget/DecorCaptionView.java
+--- frameworks_base_old/core/java/com/android/internal/widget/DecorCaptionView.java	2020-07-16 22:42:34.328543789 +0800
++++ frameworks_base_new/core/java/com/android/internal/widget/DecorCaptionView.java	2020-07-16 22:42:58.344544108 +0800
+@@ -343,6 +343,7 @@ public class DecorCaptionView extends Vi
+      * Maximize the window by moving it to the maximized workspace stack.
+      **/
+     private void maximizeWindow() {
++        /* disable for robox begin
+         Window.WindowControllerCallback callback = mOwner.getWindowControllerCallback();
+         if (callback != null) {
+             try {
+@@ -351,6 +352,7 @@ public class DecorCaptionView extends Vi
+                 Log.e(TAG, "Cannot change task workspace.");
+             }
+         }
++        disable for robox end*/
+     }
+ 
+     public boolean isCaptionShowing() {
+diff -uprN frameworks_base_old/core/java/huawei/mock/HwMockFactory.java frameworks_base_new/core/java/huawei/mock/HwMockFactory.java
+--- frameworks_base_old/core/java/huawei/mock/HwMockFactory.java	1970-01-01 08:00:00.000000000 +0800
++++ frameworks_base_new/core/java/huawei/mock/HwMockFactory.java	2020-07-16 22:42:58.360544108 +0800
+@@ -0,0 +1,41 @@
++package com.huawei.mock;
++
++import android.os.SystemProperties;
++import android.util.Log;
++
++/**
++ * HwMock工厂类，创建Imockadapter对象
++ *
++ * @since 2020-06-06
++ */
++public class HwMockFactory {
++    private static final String TAG = "HwMockFactory";
++
++    /**
++     * 创建Imockadapter对象
++     *
++     * @param null no paras
++     * @return IMockAdapter IMockAdapter
++     * @throws null no exception
++     */
++    public static IMockAdapter creator() {
++        try {
++            Object adapter = Class.forName("com.huawei.mock.MockAdapter", true,
++                HwPathClassLoaderFactory.createClassLoader()).newInstance();
++            if (adapter instanceof IMockAdapter) {
++                IMockAdapter iAdapter = (IMockAdapter)adapter;
++                if (iAdapter.isKunpengCpu()) {
++                    return (IMockAdapter) adapter;
++                }
++                return null;
++            }
++
++            Log.d(TAG, "current cpu model is not supported!");
++            return null;
++        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
++            Log.e(TAG, "creator IMockAdapter failed", e);
++            return null;
++        }
++    }
++
++}
+diff -uprN frameworks_base_old/core/java/huawei/mock/HwPathClassLoaderFactory.java frameworks_base_new/core/java/huawei/mock/HwPathClassLoaderFactory.java
+--- frameworks_base_old/core/java/huawei/mock/HwPathClassLoaderFactory.java	1970-01-01 08:00:00.000000000 +0800
++++ frameworks_base_new/core/java/huawei/mock/HwPathClassLoaderFactory.java	2020-07-16 22:42:58.360544108 +0800
+@@ -0,0 +1,31 @@
++package com.huawei.mock;
++
++import android.system.Os;
++import dalvik.system.PathClassLoader;
++
++/**
++ * HwPathClassLoaderFactory，加载Hwmock类
++ *
++ * @since 2020-06-07
++ */
++public class HwPathClassLoaderFactory {
++    static PathClassLoader classloader = null;
++
++    /**
++     * 类加载器
++     *
++     * @param null no paras
++     * @return ClassLoader ClassLoader
++     * @throws null no exception
++     */
++    public static ClassLoader createClassLoader() {
++        if (classloader == null) {
++            String classPath = Os.getenv("SYSTEMSERVERCLASSPATH");
++            String searchPath = System.getProperty("java.library.path", "");
++
++            classloader = new PathClassLoader(classPath, searchPath, ClassLoader.getSystemClassLoader());
++        }
++
++        return classloader;
++    }
++}
+diff -uprN frameworks_base_old/core/java/huawei/mock/IMockAdapter.java frameworks_base_new/core/java/huawei/mock/IMockAdapter.java
+--- frameworks_base_old/core/java/huawei/mock/IMockAdapter.java	1970-01-01 08:00:00.000000000 +0800
++++ frameworks_base_new/core/java/huawei/mock/IMockAdapter.java	2020-07-16 22:42:58.356544108 +0800
+@@ -0,0 +1,47 @@
++package com.huawei.mock;
++
++import java.io.IOException;
++
++import android.util.ArrayMap;
++import android.net.DhcpInfo;
++import android.net.IpConfiguration;
++
++/**
++ * IMockAdapter，MockAdapter接口
++ *
++ * @since 2020-06-07
++ */
++public interface IMockAdapter {
++    /**
++     * mockdata 获取接口
++     *
++     * @param mocktype mocktype
++     * @param args     args
++     * @return String mockdata
++     * @throws IOException IOException
++     */
++    String getMockData(String mocktype, Object... args) throws IOException;
++
++    /**
++     * ipconfig读取方法
++     *
++     * @param null no paras
++     * @return ArrayMap<String, IpConfiguration> get ipconfig
++     * @throws null no exception
++     */
++    ArrayMap<String, IpConfiguration> readIpAndProxyFromIfconfig();
++
++    /**
++     * 配置dhcp信息
++     *
++     * @return DhcpInfo set dhcp ipconfig
++     */
++    DhcpInfo setDhcpConfig();
++
++    /**
++     * 判断是够为鲲鹏CPU
++     *
++     * @return isKunpengCpu check if is kunpeng cpu
++     */
++    boolean isKunpengCpu();
++}
+diff -Nurp base/core/java/android/os/storage/StorageManager.java base_new/core/java/android/os/storage/StorageManager.java
+--- base/core/java/android/os/storage/StorageManager.java       2020-11-09 21:57:13.862803239 +0800
++++ base_new/core/java/android/os/storage/StorageManager.java   2020-11-09 22:02:39.746791732 +0800
+@@ -1118,15 +1118,12 @@ public class StorageManager {
+
+     /** {@hide} */
+     public static Pair<String, Long> getPrimaryStoragePathAndSize() {
+-        return Pair.create(null,
+-                FileUtils.roundStorageSize(Environment.getDataDirectory().getTotalSpace()
+-                    + Environment.getRootDirectory().getTotalSpace()));
++        return Pair.create(null, Environment.getDataDirectory().getTotalSpace());
+     }
+
+     /** {@hide} */
+     public long getPrimaryStorageSize() {
+-        return FileUtils.roundStorageSize(Environment.getDataDirectory().getTotalSpace()
+-                + Environment.getRootDirectory().getTotalSpace());
++        return Environment.getDataDirectory().getTotalSpace();
+     }
+
+     /** {@hide} */
+diff -Nur base/services/usage/java/com/android/server/usage/StorageStatsService.java base_new/services/usage/java/com/android/server/usage/StorageStatsService.java
+--- base/services/usage/java/com/android/server/usage/StorageStatsService.java  2020-11-09 21:57:07.678803457 +0800
++++ base_new/services/usage/java/com/android/server/usage/StorageStatsService.java      2020-11-09 22:05:25.550785877 +0800
+@@ -180,14 +180,14 @@
+         // NOTE: No permissions required
+
+         if (volumeUuid == StorageManager.UUID_PRIVATE_INTERNAL) {
+-            return FileUtils.roundStorageSize(mStorage.getPrimaryStorageSize());
++               return mStorage.getPrimaryStorageSize();
+         } else {
+             final VolumeInfo vol = mStorage.findVolumeByUuid(volumeUuid);
+             if (vol == null) {
+                 throw new ParcelableException(
+                         new IOException("Failed to find storage device for UUID " + volumeUuid));
+             }
+-            return FileUtils.roundStorageSize(vol.disk.size);
++               return vol.disk.size;
+         }
+     }
+
+diff -uprN frameworks_base_old/core/jni/android_os_Debug.cpp frameworks_base_new/core/jni/android_os_Debug.cpp
+--- frameworks_base_old/core/jni/android_os_Debug.cpp	2020-07-16 22:42:34.340543789 +0800
++++ frameworks_base_new/core/jni/android_os_Debug.cpp	2020-07-16 22:42:58.396544109 +0800
+@@ -695,6 +695,9 @@ static jlong android_os_Debug_getPss(JNI
+ }
+ 
+ static long get_allocated_vmalloc_memory() {
++# if 1
++    return 0;
++#else
+     char line[1024];
+     // Ignored tags that don't actually consume memory (ie remappings)
+     static const char* const ignored_tags[] = {
+@@ -728,6 +731,7 @@ static long get_allocated_vmalloc_memory
+         }
+     }
+     return vmalloc_allocated_size;
++#endif
+ }
+ 
+ enum {
+@@ -875,6 +879,8 @@ static void android_os_Debug_getMemInfo(
+     if (maxNum > MEMINFO_COUNT) {
+         maxNum = MEMINFO_COUNT;
+     }
++    // Mapped: -> 0
++    mem[11] = 0;
+     jlong* outArray = env->GetLongArrayElements(out, 0);
+     if (outArray != NULL) {
+         for (int i=0; i<maxNum; i++) {
+diff -uprN frameworks_base_old/core/jni/android_util_Process.cpp frameworks_base_new/core/jni/android_util_Process.cpp
+--- frameworks_base_old/core/jni/android_util_Process.cpp	2020-07-16 22:42:34.340543789 +0800
++++ frameworks_base_new/core/jni/android_util_Process.cpp	2020-07-16 22:42:58.396544109 +0800
+@@ -179,17 +179,19 @@ void android_os_Process_setThreadGroup(J
+ 
+ void android_os_Process_setThreadGroupAndCpuset(JNIEnv* env, jobject clazz, int tid, jint grp)
+ {
+-    ALOGV("%s tid=%d grp=%" PRId32, __func__, tid, grp);
++    ALOGE("%s tid=%d grp=%" PRId32, __func__, tid, grp);
+     SchedPolicy sp = (SchedPolicy) grp;
+     int res = set_sched_policy(tid, sp);
+ 
+     if (res != NO_ERROR) {
+-        signalExceptionForGroupError(env, -res, tid);
++		ALOGE("set_sched_policy err");
++        //signalExceptionForGroupError(env, -res, tid);
+     }
+ 
+     res = set_cpuset_policy(tid, sp);
+     if (res != NO_ERROR) {
+-        signalExceptionForGroupError(env, -res, tid);
++		ALOGE("set_cpuset_policy err");
++        //signalExceptionForGroupError(env, -res, tid);
+     }
+ }
+ 
+@@ -477,6 +479,7 @@ jint android_os_Process_getThreadSchedul
+ void android_os_Process_setThreadScheduler(JNIEnv* env, jclass clazz,
+                                               jint tid, jint policy, jint pri)
+ {
++#if 0
+ // linux has sched_setscheduler(), others don't.
+ #if defined(__linux__)
+     struct sched_param param;
+@@ -488,11 +491,13 @@ void android_os_Process_setThreadSchedul
+ #else
+     signalExceptionForPriorityError(env, ENOSYS, tid);
+ #endif
++#endif
+ }
+ 
+ void android_os_Process_setThreadPriority(JNIEnv* env, jobject clazz,
+                                               jint pid, jint pri)
+ {
++#if 0
+ #if GUARD_THREAD_PRIORITY
+     // if we're putting the current thread into the background, check the TLS
+     // to make sure this thread isn't guarded.  If it is, raise an exception.
+@@ -519,6 +524,7 @@ void android_os_Process_setThreadPriorit
+ 
+     //ALOGI("Setting priority of %" PRId32 ": %" PRId32 ", getpriority returns %d\n",
+     //     pid, pri, getpriority(PRIO_PROCESS, pid));
++#endif
+ }
+ 
+ void android_os_Process_setCallingThreadPriority(JNIEnv* env, jobject clazz,
+@@ -542,6 +548,7 @@ jint android_os_Process_getThreadPriorit
+ jboolean android_os_Process_setSwappiness(JNIEnv *env, jobject clazz,
+                                           jint pid, jboolean is_increased)
+ {
++#if 0
+     char text[64];
+ 
+     if (is_increased) {
+@@ -561,7 +568,7 @@ jboolean android_os_Process_setSwappines
+         write(fd, text, strlen(text));
+         close(fd);
+     }
+-
++#endif
+     return true;
+ }
+ 
+diff -uprN frameworks_base_old/core/jni/com_android_internal_os_Zygote.cpp frameworks_base_new/core/jni/com_android_internal_os_Zygote.cpp
+--- frameworks_base_old/core/jni/com_android_internal_os_Zygote.cpp	2020-07-16 22:42:34.340543789 +0800
++++ frameworks_base_new/core/jni/com_android_internal_os_Zygote.cpp	2020-07-16 22:42:58.396544109 +0800
+@@ -611,9 +611,10 @@ static pid_t ForkAndSpecializeCommon(JNI
+ 
+     // Re-open all remaining open file descriptors so that they aren't shared
+     // with the zygote across a fork.
++    /*
+     if (!gOpenFdTable->ReopenOrDetach(&error_msg)) {
+       fail_fn(error_msg);
+-    }
++    }*/
+ 
+     if (sigprocmask(SIG_UNBLOCK, &sigchld, nullptr) == -1) {
+       fail_fn(CREATE_ERROR("sigprocmask(SIG_SETMASK, { SIGCHLD }) failed: %s", strerror(errno)));
+diff -uprN frameworks_base_old/core/jni/fd_utils.cpp frameworks_base_new/core/jni/fd_utils.cpp
+--- frameworks_base_old/core/jni/fd_utils.cpp	2020-07-16 22:42:34.344543789 +0800
++++ frameworks_base_new/core/jni/fd_utils.cpp	2020-07-16 22:42:58.396544109 +0800
+@@ -42,6 +43,7 @@ static const char* kPathWhitelist[] = {
+   "/dev/urandom",
+   "/dev/ion",
+   "/dev/dri/renderD129", // Fixes b/31172436
++  "/dev/pts/0",
+ };
+ 
+ static const char kFdPath[] = "/proc/self/fd";
+@@ -114,7 +116,7 @@ bool FileDescriptorWhitelist::IsAllowed(
+     return true;
+   }
+ 
+-  return false;
++  return true;
+ }
+ 
+ FileDescriptorWhitelist::FileDescriptorWhitelist()
+diff -uprN frameworks_base_old/core/res/res/values/config.xml frameworks_base_new/core/res/res/values/config.xml
+--- frameworks_base_old/core/res/res/values/config.xml	2020-07-16 22:42:34.904543797 +0800
++++ frameworks_base_new/core/res/res/values/config.xml	2020-07-16 22:43:00.272544133 +0800
+@@ -2997,7 +2997,7 @@
+          PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT feature to your device specification.
+          The duplication is necessary, because this information is used before the features are
+          available to the system.-->
+-    <bool name="config_freeformWindowManagement">false</bool>
++    <bool name="config_freeformWindowManagement">true</bool>
+ 
+     <!-- If set, this will force all windows to draw the status bar background, including the apps
+          that have not requested doing so (via the WindowManager.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+diff --git a/graphics/java/android/graphics/BaseCanvas.java b/graphics/java/android/graphics/BaseCanvas.java
+index 71ee6c2b442..b5d1eacffe3 100644
+--- a/graphics/java/android/graphics/BaseCanvas.java
++++ b/graphics/java/android/graphics/BaseCanvas.java
+@@ -58,10 +58,10 @@ public abstract class BaseCanvas {
+     private boolean mAllowHwBitmapsInSwMode = false;
+ 
+     protected void throwIfCannotDraw(Bitmap bitmap) {
+-        if (bitmap.isRecycled()) {
++        if (bitmap != null && bitmap.isRecycled()) {
+             throw new RuntimeException("Canvas: trying to use a recycled bitmap " + bitmap);
+         }
+-        if (!bitmap.isPremultiplied() && bitmap.getConfig() == Bitmap.Config.ARGB_8888 &&
++        if (bitmap != null && !bitmap.isPremultiplied() && bitmap.getConfig() == Bitmap.Config.ARGB_8888 &&
+                 bitmap.hasAlpha()) {
+             throw new RuntimeException("Canvas: trying to use a non-premultiplied bitmap "
+                     + bitmap);
+@@ -553,7 +553,7 @@ public abstract class BaseCanvas {
+     }
+ 
+     private void throwIfHwBitmapInSwMode(Bitmap bitmap) {
+-        if (!isHardwareAccelerated() && bitmap.getConfig() == Bitmap.Config.HARDWARE) {
++        if (bitmap != null && !isHardwareAccelerated() && bitmap.getConfig() == Bitmap.Config.HARDWARE) {
+             onHwBitmapInSwMode();
+         }
+     }
+diff -uprN frameworks_base_old/opengl/java/android/opengl/GLSurfaceView.java frameworks_base_new/opengl/java/android/opengl/GLSurfaceView.java
+--- frameworks_base_old/opengl/java/android/opengl/GLSurfaceView.java	2020-07-16 22:42:35.720543807 +0800
++++ frameworks_base_new/opengl/java/android/opengl/GLSurfaceView.java	2020-07-16 22:43:02.388544162 +0800
+@@ -439,8 +439,10 @@ public class GLSurfaceView extends Surfa
+      */
+     public void setEGLConfigChooser(int redSize, int greenSize, int blueSize,
+             int alphaSize, int depthSize, int stencilSize) {
+-        setEGLConfigChooser(new ComponentSizeChooser(redSize, greenSize,
+-                blueSize, alphaSize, depthSize, stencilSize));
++        //setEGLConfigChooser(new ComponentSizeChooser(redSize, greenSize,
++        //        blueSize, alphaSize, depthSize, stencilSize));
++        setEGLConfigChooser(new ComponentSizeChooser(8, 8,
++                8, alphaSize, depthSize, stencilSize));
+     }
+ 
+     /**
+diff -uprN frameworks_base_old/packages/SettingsProvider/res/values/defaults.xml frameworks_base_new/packages/SettingsProvider/res/values/defaults.xml
+--- frameworks_base_old/packages/SettingsProvider/res/values/defaults.xml	2020-07-16 22:42:35.868543809 +0800
++++ frameworks_base_new/packages/SettingsProvider/res/values/defaults.xml	2020-07-16 22:43:02.900544168 +0800
+@@ -137,7 +137,7 @@
+     <!-- Default for DTMF tones enabled -->
+     <bool name="def_dtmf_tones_enabled">true</bool>
+     <!-- Default for UI touch sounds enabled -->
+-    <bool name="def_sound_effects_enabled">true</bool>
++    <bool name="def_sound_effects_enabled">false</bool>
+ 
+     <!-- Development settings -->
+     <bool name="def_stay_on_while_plugged_in">false</bool>
+diff -uprN frameworks_base_old/services/core/java/com/android/server/AlarmManagerService.java frameworks_base_new/services/core/java/com/android/server/AlarmManagerService.java
+--- frameworks_base_old/services/core/java/com/android/server/AlarmManagerService.java	2020-07-16 22:42:36.104543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/AlarmManagerService.java	2020-07-16 22:43:03.716544179 +0800
+@@ -3666,7 +3666,7 @@ class AlarmManagerService extends System
+                         Alarm alarm = triggerList.get(i);
+                         try {
+                             alarm.operation.send();
+-                        } catch (PendingIntent.CanceledException e) {
++                        } catch (Exception e) {
+                             if (alarm.repeatInterval > 0) {
+                                 // This IntentSender is no longer valid, but this
+                                 // is a repeating alarm, so toss the hoser.
+diff --git a/services/core/java/com/android/server/am/ActivityManagerShellCommand.java b/services/core/java/com/android/server/am/ActivityManagerShellCommand.java
+index dc9a5adb5a0..37c24ea3995 100644
+--- a/services/core/java/com/android/server/am/ActivityManagerShellCommand.java
++++ b/services/core/java/com/android/server/am/ActivityManagerShellCommand.java
+@@ -139,6 +139,8 @@ final class ActivityManagerShellCommand extends ShellCommand {
+     private boolean mIsTaskOverlay;
+     private boolean mIsLockTask;
+ 
++    private Rect mLaunchBounds;
++
+     final boolean mDumping;
+ 
+     ActivityManagerShellCommand(ActivityManagerService service, boolean dumping) {
+@@ -302,6 +304,7 @@ final class ActivityManagerShellCommand extends ShellCommand {
+         mTaskId = INVALID_TASK_ID;
+         mIsTaskOverlay = false;
+         mIsLockTask = false;
++        mLaunchBounds = null;
+ 
+         return Intent.parseCommandArgs(this, new Intent.CommandOptionHandler() {
+             @Override
+@@ -360,6 +363,8 @@ final class ActivityManagerShellCommand extends ShellCommand {
+                     mIsTaskOverlay = true;
+                 } else if (opt.equals("--lock-task")) {
+                     mIsLockTask = true;
++                } else if (opt.equals("--launch-bounds")) {
++                    mLaunchBounds = getBounds();
+                 } else {
+                     return false;
+                 }
+@@ -464,6 +469,11 @@ final class ActivityManagerShellCommand extends ShellCommand {
+                     options.setTaskOverlay(true, true /* canResume */);
+                 }
+             }
++            if (mLaunchBounds != null) {
++                if (options == null)
++                    options = ActivityOptions.makeBasic();
++                options.setLaunchBounds(mLaunchBounds);
++            }
+             if (mIsLockTask) {
+                 if (options == null) {
+                     options = ActivityOptions.makeBasic();
+@@ -1031,6 +1041,15 @@ final class ActivityManagerShellCommand extends ShellCommand {
+         return 0;
+     }
+ 
++    void appops_exec(String cmd) {
++        Process process;
++        try {
++            process = Runtime.getRuntime().exec(cmd);
++        } catch (IOException e) {
++            return;
++        }
++    }
++    
+     static final class MyActivityController extends IActivityController.Stub {
+         final IActivityManager mInterface;
+         final PrintWriter mPw;
+diff --git a/services/core/java/com/android/server/am/BroadcastQueue.java b/services/core/java/com/android/server/am/BroadcastQueue.java
+--- a/services/core/java/com/android/server/am/BroadcastQueue.java
++++ b/services/core/java/com/android/server/am/BroadcastQueue.java
+@@ -1285,6 +1285,12 @@ public final class BroadcastQueue {
+                     Slog.w(TAG, "Background execution not allowed: receiving "
+                             + r.intent + " to "
+                             + component.flattenToShortString());
++                    if (r.intent.getAction() != null && r.intent.getAction().equals("android.intent.action.PACKAGE_ADDED") &&
++                        r.intent.getDataString() != null && r.intent.getDataString().equals("package:com.kiloo.subwaysurf")) {
++                        Slog.w(TAG, "appops set com.kiloo.subwaysurf RUN_ANY_IN_BACKGROUND ignore");
++                        ActivityManagerShellCommand shell = new ActivityManagerShellCommand(null, true);
++                        shell.appops_exec("appops set com.kiloo.subwaysurf RUN_ANY_IN_BACKGROUND ignore");
++                    }
+                     skip = true;
+                 }
+             }
+diff -uprN frameworks_base_old/services/core/java/com/android/server/am/TaskLaunchParamsModifier.java frameworks_base_new/services/core/java/com/android/server/am/TaskLaunchParamsModifier.java
+--- frameworks_base_old/services/core/java/com/android/server/am/TaskLaunchParamsModifier.java	2020-07-16 22:42:36.116543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/am/TaskLaunchParamsModifier.java	2020-07-16 22:43:03.748544180 +0800
+@@ -136,12 +136,14 @@ class TaskLaunchParamsModifier implement
+ 
+     @VisibleForTesting
+     static int getFreeformWidth(Rect bounds) {
+-        return bounds.width() / WINDOW_SIZE_DENOMINATOR;
++        //return bounds.width() / WINDOW_SIZE_DENOMINATOR;
++        return 1024;
+     }
+ 
+     @VisibleForTesting
+     static int getFreeformHeight(Rect bounds) {
+-        return bounds.height() / WINDOW_SIZE_DENOMINATOR;
++        //return bounds.height() / WINDOW_SIZE_DENOMINATOR;
++        return 768;
+     }
+ 
+     @VisibleForTesting
+diff -uprN frameworks_base_old/services/core/java/com/android/server/NativeDaemonConnector.java frameworks_base_new/services/core/java/com/android/server/NativeDaemonConnector.java
+--- frameworks_base_old/services/core/java/com/android/server/NativeDaemonConnector.java	2020-07-16 22:42:36.108543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/NativeDaemonConnector.java	2020-07-16 22:43:03.716544179 +0800
+@@ -52,7 +52,7 @@ import java.util.LinkedList;
+  * {@code libsysutils} FrameworkListener protocol.
+  */
+ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdog.Monitor {
+-    private final static boolean VDBG = false;
++    private final static boolean VDBG = true;
+ 
+     private final String TAG;
+ 
+@@ -60,7 +60,7 @@ final class NativeDaemonConnector implem
+     private OutputStream mOutputStream;
+     private LocalLog mLocalLog;
+ 
+-    private volatile boolean mDebug = false;
++    private volatile boolean mDebug = true;
+     private volatile Object mWarnIfHeld;
+ 
+     private final ResponseQueue mResponseQueue;
+diff -uprN frameworks_base_old/services/core/java/com/android/server/net/IpConfigStore.java frameworks_base_new/services/core/java/com/android/server/net/IpConfigStore.java
+--- frameworks_base_old/services/core/java/com/android/server/net/IpConfigStore.java	2020-07-16 22:42:36.132543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/net/IpConfigStore.java	2020-07-16 22:43:03.824544181 +0800
+@@ -27,6 +27,7 @@ import android.net.StaticIpConfiguration
+ import android.util.ArrayMap;
+ import android.util.Log;
+ import android.util.SparseArray;
++import android.os.SystemProperties;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
+ 
+@@ -40,6 +41,9 @@ import java.io.IOException;
+ import java.io.InputStream;
+ import java.net.Inet4Address;
+ import java.net.InetAddress;
++import dalvik.system.VMRuntime;
++import java.io.BufferedReader;
++import java.io.InputStreamReader;
+ 
+ public class IpConfigStore {
+     private static final String TAG = "IpConfigStore";
+diff -uprN frameworks_base_old/services/core/java/com/android/server/net/NetworkPolicyManagerService.java frameworks_base_new/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+--- frameworks_base_old/services/core/java/com/android/server/net/NetworkPolicyManagerService.java	2020-07-16 22:42:36.132543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/net/NetworkPolicyManagerService.java	2020-07-16 22:43:03.828544181 +0800
+@@ -880,7 +880,7 @@ public class NetworkPolicyManagerService
+     public void systemReady(CountDownLatch initCompleteSignal) {
+         // wait for initService to complete
+         try {
+-            if (!initCompleteSignal.await(30, TimeUnit.SECONDS)) {
++            if (!initCompleteSignal.await(5, TimeUnit.SECONDS)) {
+                 throw new IllegalStateException("Service " + TAG +" init timeout");
+             }
+         } catch (InterruptedException e) {
+@@ -3856,7 +3856,7 @@ public class NetworkPolicyManagerService
+ 
+         if (packages != null) {
+             for (String packageName : packages) {
+-                if (!mUsageStats.isAppIdle(packageName, uid, userId)) {
++                if (mUsageStats!=null && !mUsageStats.isAppIdle(packageName, uid, userId)) {
+                     return false;
+                 }
+             }
+diff -uprN frameworks_base_old/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java frameworks_base_new/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java
+--- frameworks_base_old/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java	2020-07-16 22:42:36.140543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java	2020-07-16 22:43:03.868544181 +0800
+@@ -387,10 +387,10 @@ public class ImmersiveModeConfirmation {
+         public void handleMessage(Message msg) {
+             switch(msg.what) {
+                 case SHOW:
+-                    handleShow();
++                    //handleShow();
+                     break;
+                 case HIDE:
+-                    handleHide();
++                    //handleHide();
+                     break;
+             }
+         }
+diff -uprN frameworks_base_old/services/core/java/com/android/server/power/PowerManagerService.java frameworks_base_new/services/core/java/com/android/server/power/PowerManagerService.java
+--- frameworks_base_old/services/core/java/com/android/server/power/PowerManagerService.java	2020-07-16 22:42:36.140543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/power/PowerManagerService.java	2020-07-16 22:43:03.872544181 +0800
+@@ -923,8 +923,9 @@ public final class PowerManagerService e
+         mSleepTimeoutSetting = Settings.Secure.getIntForUser(resolver,
+                 Settings.Secure.SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT,
+                 UserHandle.USER_CURRENT);
+-        mStayOnWhilePluggedInSetting = Settings.Global.getInt(resolver,
+-                Settings.Global.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC);
++        // mStayOnWhilePluggedInSetting = Settings.Global.getInt(resolver,
++        //        Settings.Global.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC);
++        mStayOnWhilePluggedInSetting = 1;
+         mTheaterModeEnabled = Settings.Global.getInt(mContext.getContentResolver(),
+                 Settings.Global.THEATER_MODE_ON, 0) == 1;
+         mAlwaysOnEnabled = mAmbientDisplayConfiguration.alwaysOnEnabled(UserHandle.USER_CURRENT);
+@@ -1764,9 +1765,11 @@ public final class PowerManagerService e
+     private void updateStayOnLocked(int dirty) {
+         if ((dirty & (DIRTY_BATTERY_STATE | DIRTY_SETTINGS)) != 0) {
+             final boolean wasStayOn = mStayOn;
+-            if (mStayOnWhilePluggedInSetting != 0
++            /*if (mStayOnWhilePluggedInSetting != 0
+                     && !isMaximumScreenOffTimeoutFromDeviceAdminEnforcedLocked()) {
+-                mStayOn = mBatteryManagerInternal.isPowered(mStayOnWhilePluggedInSetting);
++                mStayOn = mBatteryManagerInternal.isPowered(mStayOnWhilePluggedInSetting);*/
++            if (mStayOnWhilePluggedInSetting != 0) {
++                mStayOn = true;
+             } else {
+                 mStayOn = false;
+             }
+diff -uprN frameworks_base_old/services/core/java/com/android/server/StorageManagerService.java frameworks_base_new/services/core/java/com/android/server/StorageManagerService.java
+--- frameworks_base_old/services/core/java/com/android/server/StorageManagerService.java	2020-07-16 22:42:36.108543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/StorageManagerService.java	2020-07-16 22:43:03.716544179 +0800
+@@ -971,9 +971,9 @@ class StorageManagerService extends ISto
+ 
+         // On an encrypted device we can't see system properties yet, so pull
+         // the system locale out of the mount service.
+-        if ("".equals(SystemProperties.get("vold.encrypt_progress"))) {
+-            copyLocaleFromMountService();
+-        }
++        //if ("".equals(SystemProperties.get("vold.encrypt_progress"))) {
++            //copyLocaleFromMountService();
++        //}
+     }
+ 
+     private void copyLocaleFromMountService() {
+diff -uprN frameworks_base_old/services/core/java/com/android/server/wm/WindowStateAnimator.java frameworks_base_new/services/core/java/com/android/server/wm/WindowStateAnimator.java
+--- frameworks_base_old/services/core/java/com/android/server/wm/WindowStateAnimator.java	2020-07-16 22:42:36.152543813 +0800
++++ frameworks_base_new/services/core/java/com/android/server/wm/WindowStateAnimator.java	2020-07-16 22:43:03.924544182 +0800
+@@ -509,9 +509,17 @@ class WindowStateAnimator {
+                 flags |= SurfaceControl.OPAQUE;
+             }
+ 
+-            mSurfaceController = new WindowSurfaceController(mSession.mSurfaceSession,
++            /*mSurfaceController = new WindowSurfaceController(mSession.mSurfaceSession,
+                     attrs.getTitle().toString(), width, height, format, flags, this,
+-                    windowType, ownerUid);
++                    windowType, ownerUid);*/
++            String name = attrs.getTitle().toString();
++            Task task = mWin.getTask();
++            if (task != null) {
++                name = String.format("org.anbox.surface.%d", task.mTaskId);
++            }
++
++            mSurfaceController = new WindowSurfaceController(mSession.mSurfaceSession,
++                    name, width, height, format, flags, this, windowType, ownerUid);
+ 
+             setOffsetPositionForStackResize(false);
+             mSurfaceFormat = format;
+diff -uprN frameworks_base_old/services/core/jni/com_android_server_AlarmManagerService.cpp frameworks_base_new/services/core/jni/com_android_server_AlarmManagerService.cpp
+--- frameworks_base_old/services/core/jni/com_android_server_AlarmManagerService.cpp	2020-07-16 22:42:36.152543813 +0800
++++ frameworks_base_new/services/core/jni/com_android_server_AlarmManagerService.cpp	2020-07-16 22:43:03.932544182 +0800
+@@ -61,9 +61,11 @@ static constexpr int ANDROID_ALARM_TIME_
+ static const size_t ANDROID_ALARM_TYPE_COUNT = 5;
+ static const size_t N_ANDROID_TIMERFDS = ANDROID_ALARM_TYPE_COUNT + 1;
+ static const clockid_t android_alarm_to_clockid[N_ANDROID_TIMERFDS] = {
+-    CLOCK_REALTIME_ALARM,
++    //CLOCK_REALTIME_ALARM,
+     CLOCK_REALTIME,
+-    CLOCK_BOOTTIME_ALARM,
++    //CLOCK_BOOTTIME_ALARM,
++    CLOCK_REALTIME,
++    CLOCK_BOOTTIME,
+     CLOCK_BOOTTIME,
+     CLOCK_MONOTONIC,
+     CLOCK_REALTIME,
+diff -uprN frameworks_base_old/services/java/com/android/server/SystemServer.java frameworks_base_new/services/java/com/android/server/SystemServer.java
+--- frameworks_base_old/services/java/com/android/server/SystemServer.java	2020-07-16 22:42:36.156543813 +0800
++++ frameworks_base_new/services/java/com/android/server/SystemServer.java	2020-07-16 22:43:03.940544182 +0800
+@@ -395,8 +395,8 @@ public final class SystemServer {
+             BinderInternal.setMaxThreads(sMaxBinderThreads);
+ 
+             // Prepare the main looper thread (this thread).
+-            android.os.Process.setThreadPriority(
+-                android.os.Process.THREAD_PRIORITY_FOREGROUND);
++            // android.os.Process.setThreadPriority(
++            //    android.os.Process.THREAD_PRIORITY_FOREGROUND);
+             android.os.Process.setCanSelfBackground(false);
+             Looper.prepareMainLooper();
+             Looper.getMainLooper().setSlowLogThresholdMs(
+@@ -694,7 +694,26 @@ public final class SystemServer {
+     private void startCoreServices() {
+         traceBeginAndSlog("StartBatteryService");
+         // Tracks the battery level.  Requires LightService.
+-        mSystemServiceManager.startService(BatteryService.class);
++        // ANBOX. We are too fast some times and a race condition appears while
++        // creating the BatteryService. Retry.
++        boolean created = false;
++        final int RETRY_TIME_MS = 20;
++        final int MAX_WAIT_TIME_MS = 400;
++        int retry = 0;
++        do {
++            try {
++                mSystemServiceManager.startService(BatteryService.class);
++                created = true;
++            } catch (RuntimeException ex) {
++                Slog.i(TAG, "Error when trying to start BatteryService");
++                if (++retry == MAX_WAIT_TIME_MS/RETRY_TIME_MS) {
++                    throw ex;
++                }
++                try {
++                    Thread.sleep(RETRY_TIME_MS);  // in ms
++                } catch (InterruptedException ex2) {}
++            }
++        } while(!created);
+         traceEnd();
+ 
+         // Tracks application usage stats.
+diff -uprN frameworks_base_old/services/net/java/android/net/dhcp/DhcpClient.java frameworks_base_new/services/net/java/android/net/dhcp/DhcpClient.java
+--- frameworks_base_old/services/net/java/android/net/dhcp/DhcpClient.java	2020-07-16 22:42:36.156543813 +0800
++++ frameworks_base_new/services/net/java/android/net/dhcp/DhcpClient.java	2020-07-16 22:43:03.944544182 +0800
+@@ -1025,7 +1025,7 @@ public class DhcpClient extends StateMac
+     }
+ 
+     private void logError(int errorCode) {
+-        mMetricsLog.log(mIfaceName, new DhcpErrorEvent(errorCode));
++        //mMetricsLog.log(mIfaceName, new DhcpErrorEvent(errorCode));
+     }
+ 
+     private void logState(String name, int durationMs) {
+diff -uprN frameworks_base_old/services/net/java/android/net/ip/ConnectivityPacketTracker.java frameworks_base_new/services/net/java/android/net/ip/ConnectivityPacketTracker.java
+--- frameworks_base_old/services/net/java/android/net/ip/ConnectivityPacketTracker.java	2020-07-16 22:42:36.156543813 +0800
++++ frameworks_base_new/services/net/java/android/net/ip/ConnectivityPacketTracker.java	2020-07-16 22:43:03.944544182 +0800
+@@ -105,7 +105,7 @@ public class ConnectivityPacketTracker {
+                 NetworkUtils.attachControlPacketFilter(s, ARPHRD_ETHER);
+                 Os.bind(s, new PacketSocketAddress((short) ETH_P_ALL, mInterface.index));
+             } catch (ErrnoException | IOException e) {
+-                logError("Failed to create packet tracking socket: ", e);
++                //logError("Failed to create packet tracking socket: ", e);
+                 closeFd(s);
+                 return null;
+             }
+@@ -142,8 +142,8 @@ public class ConnectivityPacketTracker {
+ 
+         @Override
+         protected void logError(String msg, Exception e) {
+-            Log.e(mTag, msg, e);
+-            addLogEntry(msg + e);
++            //Log.e(mTag, msg, e);
++            //addLogEntry(msg + e);
+         }
+ 
+         private void addLogEntry(String entry) {
+diff -uprN frameworks_base_old/services/net/java/android/net/ip/InterfaceController.java frameworks_base_new/services/net/java/android/net/ip/InterfaceController.java
+--- frameworks_base_old/services/net/java/android/net/ip/InterfaceController.java	2020-07-16 22:42:36.156543813 +0800
++++ frameworks_base_new/services/net/java/android/net/ip/InterfaceController.java	2020-07-16 22:43:03.944544182 +0800
+@@ -157,6 +157,6 @@ public class InterfaceController {
+     }
+ 
+     private void logError(String fmt, Object... args) {
+-        mLog.e(String.format(fmt, args));
++        //mLog.e(String.format(fmt, args));
+     }
+ }
+diff -uprN frameworks_base_old/services/net/java/android/net/ip/IpClient.java frameworks_base_new/services/net/java/android/net/ip/IpClient.java
+--- frameworks_base_old/services/net/java/android/net/ip/IpClient.java	2020-07-16 22:42:36.156543813 +0800
++++ frameworks_base_new/services/net/java/android/net/ip/IpClient.java	2020-07-16 22:43:03.944544182 +0800
+@@ -414,7 +414,7 @@ public class IpClient extends StateMachi
+         }
+ 
+         /* package */ boolean mEnableIPv4 = true;
+-        /* package */ boolean mEnableIPv6 = true;
++        /* package */ boolean mEnableIPv6 = false;
+         /* package */ boolean mUsingMultinetworkPolicyTracker = true;
+         /* package */ boolean mUsingIpReachabilityMonitor = true;
+         /* package */ int mRequestedPreDhcpActionMs;
+@@ -430,7 +430,7 @@ public class IpClient extends StateMachi
+ 
+         public ProvisioningConfiguration(ProvisioningConfiguration other) {
+             mEnableIPv4 = other.mEnableIPv4;
+-            mEnableIPv6 = other.mEnableIPv6;
++            mEnableIPv6 = false;
+             mUsingIpReachabilityMonitor = other.mUsingIpReachabilityMonitor;
+             mRequestedPreDhcpActionMs = other.mRequestedPreDhcpActionMs;
+             mInitialConfig = InitialConfiguration.copy(other.mInitialConfig);
+@@ -1023,9 +1023,9 @@ public class IpClient extends StateMachi
+     }
+ 
+     private void logError(String fmt, Object... args) {
+-        final String msg = "ERROR " + String.format(fmt, args);
+-        Log.e(mTag, msg);
+-        mLog.log(msg);
++        //final String msg = "ERROR " + String.format(fmt, args);
++        //Log.e(mTag, msg);
++        //mLog.log(msg);
+     }
+ 
+     // This needs to be called with care to ensure that our LinkProperties
+@@ -1152,19 +1152,24 @@ public class IpClient extends StateMachine {
+     private void dispatchCallback(ProvisioningChange delta, LinkProperties newLp) {
+         switch (delta) {
+             case GAINED_PROVISIONING:
+-                if (DBG) { Log.d(mTag, "onProvisioningSuccess()"); }
++                if (true) { Log.d(mTag, "onProvisioningSuccess()"); }
++                try{
++                    Thread.sleep(300);
++                }catch (Exception e){
++                    Log.d(mTag, e.toString());
++                }
+                 recordMetric(IpManagerEvent.PROVISIONING_OK);
+                 mCallback.onProvisioningSuccess(newLp);
+                 break;
+ 
+             case LOST_PROVISIONING:
+-                if (DBG) { Log.d(mTag, "onProvisioningFailure()"); }
++                if (true) { Log.d(mTag, "onProvisioningFailure()"); }
+                 recordMetric(IpManagerEvent.PROVISIONING_FAIL);
+                 mCallback.onProvisioningFailure(newLp);
+                 break;
+ 
+             default:
+-                if (DBG) { Log.d(mTag, "onLinkPropertiesChange()"); }
++                if (true) { Log.d(mTag, "onLinkPropertiesChange()"); }
+                 mCallback.onLinkPropertiesChange(newLp);
+                 break;
+         }
+@@ -1407,7 +1412,7 @@ public class IpClient extends StateMachine {
+         //     - we don't get IPv4 routes from netlink
+         // so we neither react to nor need to wait for changes in either.
+ 
+-        mInterfaceCtrl.disableIPv6();
++        //mInterfaceCtrl.disableIPv6();
+         mInterfaceCtrl.clearAllAddresses();
+     }
+ 
+diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager.java frameworks_base_new/telephony/java/android/telephony/TelephonyManager.java
+--- frameworks_base_old/telephony/java/android/telephony/TelephonyManager.java	2020-07-16 22:42:36.196543814 +0800
++++ frameworks_base_new/telephony/java/android/telephony/TelephonyManager.java	2020-07-16 22:43:04.076544184 +0800
+@@ -70,7 +70,12 @@ import com.android.internal.telephony.Ph
+ import com.android.internal.telephony.RILConstants;
+ import com.android.internal.telephony.TelephonyProperties;
+ 
++import com.huawei.mock.HwMockFactory;
++import com.huawei.mock.IMockAdapter;
++
+ import java.io.FileInputStream;
++import java.io.FileOutputStream;
++import java.io.FileOutputStream;
+ import java.io.IOException;
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+@@ -1203,6 +1208,18 @@ public class TelephonyManager {
+         }
+     }
+ 
++    // private String readImeiFile() throws IOException {
++    //     String imeiGenCode = "";
++    //     imeiGenCode = SystemProperties.get("sys.prop.writeimei");
++    //     return imeiGenCode;
++    // }
++
++    // private String readImsiFile() throws IOException {
++    //     String imsiGenCode = "";
++    //     imsiGenCode = SystemProperties.get("sys.prop.writeimsi");
++    //     return imsiGenCode;
++    // }
++
+     /**
+      * Returns the unique device ID, for example, the IMEI for GSM and the MEID
+      * or ESN for CDMA phones. Return null if device ID is not available.
+@@ -1218,15 +1235,26 @@ public class TelephonyManager {
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getDeviceId() {
+         try {
++            /*
+             ITelephony telephony = getITelephony();
+             if (telephony == null)
+                 return null;
+             return telephony.getDeviceId(mContext.getOpPackageName());
+-        } catch (RemoteException ex) {
++            */
++            // return readImeiFile();
++            return HwMockFactory.creator().getMockData("WRITEIMEI");
++        } catch (IOException e) {
++            e.printStackTrace();
+             return null;
+         } catch (NullPointerException ex) {
+             return null;
+         }
++        /*
++        } catch (RemoteException ex) {
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }*/
+     }
+ 
+     /**
+@@ -1247,15 +1275,25 @@ public class TelephonyManager {
+     public String getDeviceId(int slotIndex) {
+         // FIXME this assumes phoneId == slotIndex
+         try {
++            /*
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+                 return null;
+-            return info.getDeviceIdForPhone(slotIndex, mContext.getOpPackageName());
+-        } catch (RemoteException ex) {
++            return info.getDeviceIdForPhone(slotIndex, mContext.getOpPackageName());*/
++            // return readImeiFile();
++            return HwMockFactory.creator().getMockData("WRITEIMEI");
++        } catch (IOException e) {
++            e.printStackTrace();
+             return null;
+         } catch (NullPointerException ex) {
+             return null;
+         }
++        /*
++        } catch (RemoteException ex) {
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }*/
+     }
+ 
+     /**
+@@ -1268,7 +1306,16 @@ public class TelephonyManager {
+     @SuppressAutoDoc // Blocked by b/72967236 - no support for carrier privileges
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getImei() {
+-        return getImei(getSlotIndex());
++        //return getImei(getSlotIndex())
++        try {
++            // return readImeiFile();
++            return HwMockFactory.creator().getMockData("WRITEIMEI");
++        } catch (IOException e) {
++            e.printStackTrace();
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }
+     }
+ 
+     /**
+@@ -1283,9 +1330,8 @@ public class TelephonyManager {
+     @SuppressAutoDoc // Blocked by b/72967236 - no support for carrier privileges
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getImei(int slotIndex) {
+-        ITelephony telephony = getITelephony();
++        /*ITelephony telephony = getITelephony();
+         if (telephony == null) return null;
+-
+         try {
+             return telephony.getImeiForSlot(slotIndex, getOpPackageName());
+         } catch (RemoteException ex) {
+@@ -1293,6 +1339,16 @@ public class TelephonyManager {
+         } catch (NullPointerException ex) {
+             return null;
+         }
++        */
++        try {
++            // return readImeiFile();
++            return HwMockFactory.creator().getMockData("WRITEIMEI");
++        } catch (IOException e) {
++            e.printStackTrace();
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }
+     }
+ 
+     /**
+@@ -1322,8 +1378,9 @@ public class TelephonyManager {
+         if (telephony == null) return null;
+ 
+         try {
+-            return telephony.getMeidForSlot(slotIndex, getOpPackageName());
+-        } catch (RemoteException ex) {
++            // return telephony.getMeidForSlot(slotIndex, getOpPackageName());
++            return HwMockFactory.creator().getMockData("WRITEIMEI");
++        } catch (IOException e) {
+             return null;
+         } catch (NullPointerException ex) {
+             return null;
+@@ -1767,8 +1824,18 @@ public class TelephonyManager {
+      * @hide
+      */
+     public String getNetworkOperatorName(int subId) {
+-        int phoneId = SubscriptionManager.getPhoneId(subId);
+-        return getTelephonyProperty(phoneId, TelephonyProperties.PROPERTY_OPERATOR_ALPHA, "");
++        //int phoneId = SubscriptionManager.getPhoneId(subId);
++        //return getTelephonyProperty(phoneId, TelephonyProperties.PROPERTY_OPERATOR_ALPHA, "");
++        try {
++            //return telephony.getImeiForSlot(slotId, getOpPackageName());
++            //return readImeiFile();
++            return HwMockFactory.creator().getMockData("OP_ALPHACPH");
++            } catch (IOException e) {
++                e.printStackTrace();
++                return null;
++                } catch (NullPointerException ex) {
++                   return null;
++                   }
+     }
+ 
+     /**
+@@ -1810,7 +1877,17 @@ public class TelephonyManager {
+      * @hide
+      **/
+     public String getNetworkOperatorForPhone(int phoneId) {
+-        return getTelephonyProperty(phoneId, TelephonyProperties.PROPERTY_OPERATOR_NUMERIC, "");
++        //return getTelephonyProperty(phoneId, TelephonyProperties.PROPERTY_OPERATOR_NUMERIC, "");
++        try {
++            //return telephony.getImeiForSlot(slotId, getOpPackageName());
++            //return readImeiFile();
++            return HwMockFactory.creator().getMockData("OP_NUMERICCPH");
++            } catch (IOException e) {
++                e.printStackTrace();
++                return null;
++                } catch (NullPointerException ex) {
++                    return null;
++                    }
+      }
+ 
+ 
+@@ -1915,13 +1992,24 @@ public class TelephonyManager {
+      */
+     /** {@hide} */
+     public String getNetworkCountryIsoForPhone(int phoneId) {
++        /*
+         try {
+             ITelephony telephony = getITelephony();
+             if (telephony == null) return "";
+             return telephony.getNetworkCountryIsoForPhone(phoneId);
+         } catch (RemoteException ex) {
+             return "";
+-        }
++        }*/
++        try {
++            //return telephony.getImeiForSlot(slotId, getOpPackageName());
++            //return readImeiFile();
++            return HwMockFactory.creator().getMockData("OP_COUNTRYCPH");
++            } catch (IOException e) {
++                e.printStackTrace();
++                return null;
++                } catch (NullPointerException ex) {
++                    return null;
++                    }
+     }
+ 
+     /*
+@@ -2622,8 +2710,20 @@ public class TelephonyManager {
+      * @hide
+      */
+     public String getSimOperatorNumericForPhone(int phoneId) {
+-        return getTelephonyProperty(phoneId,
+-                TelephonyProperties.PROPERTY_ICC_OPERATOR_NUMERIC, "");
++        //return getTelephonyProperty(phoneId,
++                //TelephonyProperties.PROPERTY_ICC_OPERATOR_NUMERIC, "");
++
++        try {
++            //return telephony.getImeiForSlot(slotId, getOpPackageName());
++            //return readImeiFile();
++            return HwMockFactory.creator().getMockData("SIM_NUMERICCPH");
++               } catch (IOException e) {
++                   e.printStackTrace();
++                   return null;
++               } catch (NullPointerException ex) {
++                   return null;
++               }
++
+     }
+ 
+     /**
+@@ -2658,8 +2758,20 @@ public class TelephonyManager {
+      * @hide
+      */
+     public String getSimOperatorNameForPhone(int phoneId) {
+-         return getTelephonyProperty(phoneId,
+-                TelephonyProperties.PROPERTY_ICC_OPERATOR_ALPHA, "");
++
++         //return getTelephonyProperty(phoneId,
++                //TelephonyProperties.PROPERTY_ICC_OPERATOR_ALPHA, "");
++        try {
++            //return telephony.getImeiForSlot(slotId, getOpPackageName());
++            //return readImeiFile();
++            return HwMockFactory.creator().getMockData("SIM_ALPHACPH");
++            } catch (IOException e) {
++                   e.printStackTrace();
++                   return null;
++            } catch (NullPointerException ex) {
++                       return null;
++            }               
++
+     }
+ 
+     /**
+@@ -2686,8 +2798,18 @@ public class TelephonyManager {
+      * @hide
+      */
+     public String getSimCountryIsoForPhone(int phoneId) {
+-        return getTelephonyProperty(phoneId,
+-                TelephonyProperties.PROPERTY_ICC_OPERATOR_ISO_COUNTRY, "");
++        //return getTelephonyProperty(phoneId,
++                //TelephonyProperties.PROPERTY_ICC_OPERATOR_ISO_COUNTRY, "");
++        try {
++            //return telephony.getImeiForSlot(slotId, getOpPackageName());
++            //return readImeiFile();
++            return HwMockFactory.creator().getMockData("SIM_COUNTRYCPH");
++               } catch (IOException e) {
++                   e.printStackTrace();
++                   return null;
++               } catch (NullPointerException ex) {
++                   return null;
++               }
+     }
+ 
+     /**
+@@ -2712,6 +2834,7 @@ public class TelephonyManager {
+      */
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getSimSerialNumber(int subId) {
++        /*
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -2722,7 +2845,20 @@ public class TelephonyManager {
+         } catch (NullPointerException ex) {
+             // This could happen before phone restarts due to crashing
+             return null;
+-        }
++        }*/
++        IPhoneSubInfo info = getSubscriberInfo();
++        if (info == null)
++            return null;
++
++            try {
++                return HwMockFactory.creator().getMockData("WRITESIMSERIAL");
++            } catch (IOException e) {
++                e.printStackTrace();
++                return null;
++            } catch (NullPointerException ex) {
++                return null;
++            }
++
+     }
+ 
+     /**
+@@ -2858,6 +2994,7 @@ public class TelephonyManager {
+      */
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getSubscriberId(int subId) {
++        /*
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -2868,6 +3005,16 @@ public class TelephonyManager {
+         } catch (NullPointerException ex) {
+             // This could happen before phone restarts due to crashing
+             return null;
++        }*/
++        try {
++            // return readImsiFile();
++            return HwMockFactory.creator().getMockData("WRITEIMSI");
++        } catch (IOException e){
++            e.printStackTrace();
++            return null;
++        }catch (NullPointerException ex) {
++        // This could happen before phone restarts due to crashing
++            return null;
+         }
+     }
+ 
+@@ -2975,22 +3122,22 @@ public class TelephonyManager {
+         return isKeyEnabled(keyAvailability, keyType);
+     }
+ 
+-    /**
+-     * Sets the Carrier specific information that will be used to encrypt the IMSI and IMPI.
+-     * This includes the public key and the key identifier. This information will be stored in the
+-     * device keystore.
+-     * <p>
+-     * Requires Permission:
+-     *   {@link android.Manifest.permission#MODIFY_PHONE_STATE MODIFY_PHONE_STATE}
+-     * @param imsiEncryptionInfo which includes the Key Type, the Public Key
+-     *        (java.security.PublicKey) and the Key Identifier.and the Key Identifier.
+-     *        The keyIdentifier Attribute value pair that helps a server locate
+-     *        the private key to decrypt the permanent identity. This field is
+-     *        optional and if it is present then it’s always separated from encrypted
+-     *        permanent identity with “,”. Key identifier AVP is presented in ASCII string
+-     *        with “name=value” format.
+-     * @hide
+-     */
++     /**
++      * Sets the Carrier specific information that will be used to encrypt the IMSI and IMPI.
++      * This includes the public key and the key identifier. This information will be stored in the
++      * device keystore.
++      * <p>
++      * Requires Permission:
++      *   {@link android.Manifest.permission#MODIFY_PHONE_STATE MODIFY_PHONE_STATE}
++      * @param imsiEncryptionInfo which includes the Key Type, the Public Key
++      *        (java.security.PublicKey) and the Key Identifier.and the Key Identifier.
++      *        The keyIdentifier Attribute value pair that helps a server locate
++      *        the private key to decrypt the permanent identity. This field is
++      *        optional and if it is present then it's always separated from encrypted
++      *        permanent identity with ",". Key identifier AVP is presented in ASCII string
++      *        with "name=value" format.
++      * @hide
++      */
+     public void setCarrierInfoForImsiEncryption(ImsiEncryptionInfo imsiEncryptionInfo) {
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+@@ -3098,6 +3245,7 @@ public class TelephonyManager {
+         if (number != null) {
+             return number;
+         }
++        /*
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -3108,7 +3256,19 @@ public class TelephonyManager {
+         } catch (NullPointerException ex) {
+             // This could happen before phone restarts due to crashing
+             return null;
+-        }
++        }*/
++        IPhoneSubInfo info = getSubscriberInfo();
++        if (info == null)
++            return null;
++
++        try {
++            return HwMockFactory.creator().getMockData("WRITEPHONENUM");
++               } catch (IOException e) {
++                   e.printStackTrace();
++                   return null;
++               } catch (NullPointerException ex) {
++                   return null;
++               }
+     }
+ 
+     /**
+diff -uNr frameworks_base_old/services/core/java/com/android/server/BatteryService.java .frameworks_base_new/services/core/java/com/android/server/BatteryService.java
+--- frameworks_base_old/services/core/java/com/android/server/BatteryService.java	2020-07-11 12:42:44.000000000 +0800
++++ frameworks_base_new/services/core/java/com/android/server/BatteryService.java	2020-10-30 09:15:59.410924035 +0800
+@@ -124,6 +124,9 @@
+     private static final long BATTERY_LEVEL_CHANGE_THROTTLE_MS = 60_000;
+     private static final int MAX_BATTERY_LEVELS_QUEUE_SIZE = 100;
+ 
++	/** full battery level is 100 */
++	private static final int BATTERY_LEVEL_FULL = 100;
++
+     // Used locally for determining when to make a last ditch effort to log
+     // discharge stats before the device dies.
+     private int mCriticalBatteryLevel;
+@@ -665,7 +668,7 @@
+         intent.putExtra(BatteryManager.EXTRA_STATUS, mHealthInfo.batteryStatus);
+         intent.putExtra(BatteryManager.EXTRA_HEALTH, mHealthInfo.batteryHealth);
+         intent.putExtra(BatteryManager.EXTRA_PRESENT, mHealthInfo.batteryPresent);
+-        intent.putExtra(BatteryManager.EXTRA_LEVEL, mHealthInfo.batteryLevel);
++        intent.putExtra(BatteryManager.EXTRA_LEVEL, BATTERY_LEVEL_FULL);
+         intent.putExtra(BatteryManager.EXTRA_BATTERY_LOW, mSentLowBatteryBroadcast);
+         intent.putExtra(BatteryManager.EXTRA_SCALE, BATTERY_SCALE);
+         intent.putExtra(BatteryManager.EXTRA_ICON_SMALL, icon);
+@@ -989,7 +992,7 @@
+                 pw.println("  status: " + mHealthInfo.batteryStatus);
+                 pw.println("  health: " + mHealthInfo.batteryHealth);
+                 pw.println("  present: " + mHealthInfo.batteryPresent);
+-                pw.println("  level: " + mHealthInfo.batteryLevel);
++                pw.println("  level: " + BATTERY_LEVEL_FULL);
+                 pw.println("  scale: " + BATTERY_SCALE);
+                 pw.println("  voltage: " + mHealthInfo.batteryVoltage);
+                 pw.println("  temperature: " + mHealthInfo.batteryTemperature);
+diff --git a/services/core/java/com/android/server/location/GnssGeofenceProvider.java b/services/core/java/com/android/server/location/GnssGeofenceProvider.java
+index 6ac4aeb7f9e..b709306a531 100644
+--- a/services/core/java/com/android/server/location/GnssGeofenceProvider.java
++++ b/services/core/java/com/android/server/location/GnssGeofenceProvider.java
+@@ -81,7 +81,7 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+ 
+     @Override
+     public boolean isHardwareGeofenceSupported() {
+-        return runOnHandlerThread(mNative::isGeofenceSupported);
++        return false;
+     }
+ 
+     @Override
+diff -uNr frameworks_base_old/core/java/android/net/NetworkInfo.java frameworks_base_new/core/java/android/net/NetworkInfo.java
+--- frameworks_base_old/core/java/android/net/NetworkInfo.java	2020-07-11 12:42:42.000000000 +0800
++++ frameworks_base_new/core/java/android/net/NetworkInfo.java	2020-11-13 16:59:39.731230463 +0800
+@@ -180,7 +180,7 @@
+     @Deprecated
+     public int getType() {
+         synchronized (this) {
+-            return mNetworkType;
++            return ConnectivityManager.TYPE_WIFI;
+         }
+     }
+ 
+@@ -232,7 +232,7 @@
+     @Deprecated
+     public String getTypeName() {
+         synchronized (this) {
+-            return mTypeName;
++            return "WIFI";
+         }
+     }
+ 
+@@ -265,7 +265,7 @@
+     @Deprecated
+     public boolean isConnectedOrConnecting() {
+         synchronized (this) {
+-            return mState == State.CONNECTED || mState == State.CONNECTING;
++			return true;
+         }
+     }
+ 
+@@ -277,7 +277,7 @@
+      */
+     public boolean isConnected() {
+         synchronized (this) {
+-            return mState == State.CONNECTED;
++			return true;
+         }
+     }
+ 
+@@ -305,7 +305,7 @@
+     @Deprecated
+     public boolean isAvailable() {
+         synchronized (this) {
+-            return mIsAvailable;
++			return true;
+         }
+     }
+ 
+@@ -491,12 +491,12 @@
+     @Override
+     public void writeToParcel(Parcel dest, int flags) {
+         synchronized (this) {
+-            dest.writeInt(mNetworkType);
++            dest.writeInt(ConnectivityManager.TYPE_WIFI);
+             dest.writeInt(mSubtype);
+-            dest.writeString(mTypeName);
++            dest.writeString("WIFI");
+             dest.writeString(mSubtypeName);
+-            dest.writeString(mState.name());
+-            dest.writeString(mDetailedState.name());
++            dest.writeString("CONNECTED");
++            dest.writeString("CONNECTED");
+             dest.writeInt(mIsFailover ? 1 : 0);
+             dest.writeInt(mIsAvailable ? 1 : 0);
+             dest.writeInt(mIsRoaming ? 1 : 0);
+--- frameworks_base_old/wifi/java/android/net/wifi/WifiInfo.java	2020-07-11 12:42:44.000000000 +0800
++++ frameworks_base_new/wifi/java/android/net/wifi/WifiInfo.java	2020-11-16 20:00:40.745694552 +0800
+@@ -22,12 +22,17 @@
+ import android.net.NetworkUtils;
+ import android.text.TextUtils;
+ 
++import com.huawei.mock.HwMockFactory;
++import com.huawei.mock.IMockAdapter;
++import java.io.IOException;
++
+ import java.net.InetAddress;
+ import java.net.Inet4Address;
+ import java.net.UnknownHostException;
+ import java.util.EnumMap;
+ import java.util.Locale;
+ 
++import android.os.SystemProperties;
+ /**
+  * Describes the state of any Wifi connection that is active or
+  * is in the process of being set up.
+@@ -80,6 +85,12 @@
+     /** @hide **/
+     public static final int MAX_RSSI = 200;
+ 
++    /** @hide **/
++    public static final int MID_RSSI = -55;
++
++    /** @hide **/
++    public static final int LINK_SPEED_KILO = 1000;
++
+ 
+     /**
+      * Received Signal Strength Indicator
+@@ -244,7 +255,14 @@
+                 return (hex != null) ? hex : WifiSsid.NONE;
+             }
+         }
+-        return WifiSsid.NONE;
++       String wifiGenCode = null;
++       try {
++         wifiGenCode = HwMockFactory.creator().getMockData("WRITEWIFISSID");
++        } catch(IOException e) {
++            e.printStackTrace();
++            wifiGenCode = "";
++        }
++        return wifiGenCode;
+     }
+ 
+     /** @hide */
+@@ -254,7 +272,18 @@
+ 
+     /** @hide */
+     public void setBSSID(String BSSID) {
+-        mBSSID = BSSID;
++        if (BSSID == null || BSSID.length() == 0) {
++            int MAC_NUM = 6; // the length of mac
++            String MAX_PATTEN = "aa"; // the patten of mac
++            StringBuffer mac = new StringBuffer();
++            for (int i = 1; i <= MAC_NUM; i++) {
++                mac.append(MAX_PATTEN);
++                if(i != MAC_NUM) mac.append(":");
++            }
++            mBSSID = mac.toString().toLowerCase();
++        } else {
++            mBSSID = BSSID;
++        }
+     }
+ 
+     /**
+@@ -276,7 +305,7 @@
+      * @return the RSSI.
+      */
+     public int getRssi() {
+-        return mRssi;
++		return MID_RSSI;
+     }
+ 
+     /** @hide */
+@@ -294,7 +323,7 @@
+      * @see #LINK_SPEED_UNITS
+      */
+     public int getLinkSpeed() {
+-        return mLinkSpeed;
++        return LINK_SPEED_KILO;
+     }
+ 
+     /** @hide */
+@@ -415,11 +444,14 @@
+     }
+ 
+     public int getIpAddress() {
++        /* Deleted for Kbox begin
+         int result = 0;
+         if (mIpAddress instanceof Inet4Address) {
+             result = NetworkUtils.inetAddressToInt((Inet4Address)mIpAddress);
+         }
+         return result;
++        Deleted for Kbox end */
++        return NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("172.17.0.1"));
+     }
+ 
+     /**
+@@ -499,8 +531,8 @@
+     /** Implement the Parcelable interface {@hide} */
+     public void writeToParcel(Parcel dest, int flags) {
+         dest.writeInt(mNetworkId);
+-        dest.writeInt(mRssi);
+-        dest.writeInt(mLinkSpeed);
++		dest.writeInt(MID_RSSI);
++		dest.writeInt(LINK_SPEED_KILO);
+         dest.writeInt(mFrequency);
+         if (mIpAddress != null) {
+             dest.writeByte((byte)1);
+diff -uNr frameworks_base_old/core/java/android/net/ConnectivityManager.java frameworks_base_new/core/java/android/net/ConnectivityManager.java
+--- frameworks_base_old/core/java/android/net/ConnectivityManager.java	2020-07-11 12:42:42.000000000 +0800
++++ frameworks_base_new/core/java/android/net/ConnectivityManager.java	2020-11-13 14:21:27.667565630 +0800
+@@ -822,6 +822,7 @@
+      */
+     @Deprecated
+     public static boolean isNetworkTypeWifi(int networkType) {
++        /* Deleted for Kbox begin
+         switch (networkType) {
+             case TYPE_WIFI:
+             case TYPE_WIFI_P2P:
+@@ -829,6 +830,8 @@
+             default:
+                 return false;
+         }
++        Deleted for Kbox end */
++        return true;
+     }
+ 
+     /**
+diff -uNr frameworks_base_old/services/core/java/com/android/server/ConnectivityService.java frameworks_base_new/services/core/java/com/android/server/ConnectivityService.java
+--- frameworks_base_old/services/core/java/com/android/server/ConnectivityService.java	2020-07-11 12:42:44.000000000 +0800
++++ ./services/core/java/com/android/server/ConnectivityService.java	2020-11-13 14:21:27.667565630 +0800
+@@ -1167,12 +1167,16 @@
+      */
+     @Override
+     public NetworkInfo getActiveNetworkInfo() {
++        /* Deleted for Kbox begin
+         enforceAccessPermission();
+         final int uid = Binder.getCallingUid();
+         final NetworkState state = getUnfilteredActiveNetworkState(uid);
+         filterNetworkStateForUid(state, uid, false);
+         maybeLogBlockedNetworkInfo(state.networkInfo, uid);
+         return state.networkInfo;
++        Deleted for Kbox end */
++        NetworkInfo info = new NetworkInfo(ConnectivityManager.TYPE_WIFI, 0, "WIFI", "");
++        return info;
+     }
+ 
+     @Override
+diff -Nurp frameworks_base_old/services/core/java/com/android/server/wm/TaskSnapshotSurface.java frameworks_base_new/services/core/java/com/android/server/wm/TaskSnapshotSurface.java
+--- frameworks_base_old/services/core/java/com/android/server/wm/TaskSnapshotSurface.java   2020-12-22 09:56:10.665146379 +0800
++++ frameworks_base_new/services/core/java/com/android/server/wm/TaskSnapshotSurface.java   2020-10-19 09:38:23.000000000 +0800
+@@ -198,6 +198,7 @@ class TaskSnapshotSurface implements Sta
+             task.getBounds(taskBounds);
+             currentOrientation = topFullscreenWindow.getConfiguration().orientation;
+         }
++       return null;/*
+         try {
+             final int res = session.addToDisplay(window, window.mSeq, layoutParams,
+                     View.GONE, token.getDisplayContent().getDisplayId(), tmpFrame, tmpRect, tmpRect,
+@@ -223,7 +224,7 @@ class TaskSnapshotSurface implements Sta
+         }
+         snapshotSurface.setFrames(tmpFrame, tmpContentInsets, tmpStableInsets);
+         snapshotSurface.drawSnapshot();
+-        return snapshotSurface;
++        return snapshotSurface;*/
+     }
+
+     @VisibleForTesting
+diff -uNr frameworks_base_old/wifi/java/android/net/wifi/WifiManager.java frameworks_base_new/wifi/java/android/net/wifi/WifiManager.java
+--- frameworks_base_old/wifi/java/android/net/wifi/WifiManager.java	2020-07-11 12:42:44.000000000 +0800
++++ frameworks_base_new/wifi/java/android/net/wifi/WifiManager.java	2020-11-13 17:04:55.247219322 +0800
+@@ -1815,11 +1815,14 @@
+      * @see #isWifiEnabled()
+      */
+     public int getWifiState() {
++        /* Deleted for Kbox begin
+         try {
+             return mService.getWifiEnabledState();
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+         }
++        Deleted for Kbox end */
++        return WIFI_STATE_ENABLED;
+     }
+ 
+     /**
+@@ -3149,6 +3152,7 @@
+          * will be required, regardless of the number of times that {@code acquire} is called.
+          */
+         public void acquire() {
++            /* Deleted for Kbox begin
+             synchronized (mBinder) {
+                 if (mRefCounted ? (++mRefCount == 1) : (!mHeld)) {
+                     try {
+@@ -3167,6 +3171,8 @@
+                     mHeld = true;
+                 }
+             }
++            Deleted for Kbox end */
++            Log.d("WifiMod", "WifiLock->acquire(), do nothing");
+         }
+ 
+         /**
+@@ -3182,6 +3188,7 @@
+          * calls will be ignored.
+          */
+         public void release() {
++            /* Deleted for Kbox begin
+             synchronized (mBinder) {
+                 if (mRefCounted ? (--mRefCount == 0) : (mHeld)) {
+                     try {
+@@ -3198,6 +3205,8 @@
+                     throw new RuntimeException("WifiLock under-locked " + mTag);
+                 }
+             }
++            Deleted for Kbox end */
++            Log.d("WifiMod", "WifiLock->release(), do nothing");
+         }
+ 
+         /**
+@@ -3221,9 +3230,13 @@
+          * @return true if this WifiLock is held, false otherwise
+          */
+         public boolean isHeld() {
++            /* Deleted for Kbox begin
+             synchronized (mBinder) {
+                 return mHeld;
+             }
++            Deleted for Kbox end */
++            Log.d("WifiMod", "WifiLock->release(), force return true, to enable large file download");
++            return true;
+         }
+ 
+         public void setWorkSource(WorkSource ws) {
+diff -Nur a/services/core/java/com/android/server/location/GnssLocationProvider.java b/services/core/java/com/android/server/location/GnssLocationProvider.java
+--- a/services/core/java/com/android/server/location/GnssLocationProvider.java       2020-11-18 14:46:08.557066424 +0800
++++ b/services/core/java/com/android/server/location/GnssLocationProvider.java   2020-11-18 14:49:19.069066424 +0800
+@@ -2282,10 +2282,7 @@
+         // note that this assumes the message will not be removed from the queue before
+         // it is handled (otherwise the wake lock would be leaked).
+         mWakeLock.acquire();
+-        if (Log.isLoggable(TAG, Log.INFO)) {
+-            Log.i(TAG, "WakeLock acquired by sendMessage(" + messageIdAsString(message) + ", " + arg
+-                    + ", " + obj + ")");
+-        }
++        // remove log
+         mHandler.obtainMessage(message, arg, 1, obj).sendToTarget();
+     }
+ 
+@@ -2349,10 +2346,7 @@
+             if (msg.arg2 == 1) {
+                 // wakelock was taken for this message, release it
+                 mWakeLock.release();
+-                if (Log.isLoggable(TAG, Log.INFO)) {
+-                    Log.i(TAG, "WakeLock released by handleMessage(" + messageIdAsString(message)
+-                            + ", " + msg.arg1 + ", " + msg.obj + ")");
+-                }
++                // remove log 
+             }
+         }
+
+diff -Nurp frameworks_base_old/core/java/android/bluetooth/BluetoothAdapter.java frameworks_base_new/core/java/android/bluetooth/BluetoothAdapter.java
+--- frameworks_base_old/core/java/android/bluetooth/BluetoothAdapter.java	2020-12-05 22:09:25.267605596 +0800
++++ frameworks_base_new/core/java/android/bluetooth/BluetoothAdapter.java	2020-12-05 22:09:25.267605596 +0800
+@@ -599,13 +599,8 @@ public final class BluetoothAdapter {
+      */
+     public static synchronized BluetoothAdapter getDefaultAdapter() {
+         if (sAdapter == null) {
+-            IBinder b = ServiceManager.getService(BLUETOOTH_MANAGER_SERVICE);
+-            if (b != null) {
+-                IBluetoothManager managerService = IBluetoothManager.Stub.asInterface(b);
+-                sAdapter = new BluetoothAdapter(managerService);
+-            } else {
+-                Log.e(TAG, "Bluetooth binder is null");
+-            }
++            // hwbluetooth add null BluetoothAdapter
++            sAdapter = new BluetoothAdapter(null);
+         }
+         return sAdapter;
+     }
+@@ -614,18 +609,7 @@ public final class BluetoothAdapter {
+      * Use {@link #getDefaultAdapter} to get the BluetoothAdapter instance.
+      */
+     BluetoothAdapter(IBluetoothManager managerService) {
+-
+-        if (managerService == null) {
+-            throw new IllegalArgumentException("bluetooth manager service is null");
+-        }
+-        try {
+-            mServiceLock.writeLock().lock();
+-            mService = managerService.registerAdapter(mManagerCallback);
+-        } catch (RemoteException e) {
+-            Log.e(TAG, "", e);
+-        } finally {
+-            mServiceLock.writeLock().unlock();
+-        }
++        // hwbluetooth delete managerService judge
+         mManagerService = managerService;
+         mLeScanClients = new HashMap<LeScanCallback, ScanCallback>();
+         mToken = new Binder();
+@@ -998,11 +982,6 @@ public final class BluetoothAdapter {
+             }
+             return true;
+         }
+-        try {
+-            return mManagerService.enable(ActivityThread.currentPackageName());
+-        } catch (RemoteException e) {
+-            Log.e(TAG, "", e);
+-        }
+         return false;
+     }
+ 
+@@ -1064,11 +1043,7 @@ public final class BluetoothAdapter {
+      */
+     @RequiresPermission(Manifest.permission.BLUETOOTH)
+     public String getAddress() {
+-        try {
+-            return mManagerService.getAddress();
+-        } catch (RemoteException e) {
+-            Log.e(TAG, "", e);
+-        }
++        // hwbluetooth do not get address
+         return null;
+     }
+ 
+@@ -1080,12 +1055,8 @@ public final class BluetoothAdapter {
+      * @return the Bluetooth name, or null on error
+      */
+     public String getName() {
+-        try {
+-            return mManagerService.getName();
+-        } catch (RemoteException e) {
+-            Log.e(TAG, "", e);
+-        }
+-        return null;
++        // hwbluetooth do not get getName
++        return "blueTooth";
+     }
+ 
+     /**
+@@ -2264,55 +2235,8 @@ public final class BluetoothAdapter {
+      */
+     public boolean getProfileProxy(Context context, BluetoothProfile.ServiceListener listener,
+             int profile) {
+-        if (context == null || listener == null) {
+-            return false;
+-        }
+-
+-        if (profile == BluetoothProfile.HEADSET) {
+-            BluetoothHeadset headset = new BluetoothHeadset(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.A2DP) {
+-            BluetoothA2dp a2dp = new BluetoothA2dp(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.A2DP_SINK) {
+-            BluetoothA2dpSink a2dpSink = new BluetoothA2dpSink(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.AVRCP_CONTROLLER) {
+-            BluetoothAvrcpController avrcp = new BluetoothAvrcpController(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.HID_HOST) {
+-            BluetoothHidHost iDev = new BluetoothHidHost(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.PAN) {
+-            BluetoothPan pan = new BluetoothPan(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.HEALTH) {
+-            BluetoothHealth health = new BluetoothHealth(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.MAP) {
+-            BluetoothMap map = new BluetoothMap(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.HEADSET_CLIENT) {
+-            BluetoothHeadsetClient headsetClient = new BluetoothHeadsetClient(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.SAP) {
+-            BluetoothSap sap = new BluetoothSap(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.PBAP_CLIENT) {
+-            BluetoothPbapClient pbapClient = new BluetoothPbapClient(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.MAP_CLIENT) {
+-            BluetoothMapClient mapClient = new BluetoothMapClient(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.HID_DEVICE) {
+-            BluetoothHidDevice hidDevice = new BluetoothHidDevice(context, listener);
+-            return true;
+-        } else if (profile == BluetoothProfile.HEARING_AID) {
+-            BluetoothHearingAid hearingAid = new BluetoothHearingAid(context, listener);
+-            return true;
+-        } else {
+-            return false;
+-        }
++        // hwbluetooth delete all getProfileProxy
++        return false;
+     }
+ 
+     /**
+
+diff -Nurp frameworks_base_old/packages/SystemUI/src/com/android/systemui/qs/tiles/AirplaneModeTile.java frameworks_base_new/packages/SystemUI/src/com/android/systemui/qs/tiles/AirplaneModeTile.java
+--- frameworks_base_old/packages/SystemUI/src/com/android/systemui/qs/tiles/AirplaneModeTile.java	2021-02-02 17:23:35.112526772 +0800
++++ frameworks_base_new/packages/SystemUI/src/com/android/systemui/qs/tiles/AirplaneModeTile.java	2021-02-02 17:37:06.225698257 +0800
+@@ -74,7 +74,6 @@ public class AirplaneModeTile extends QS
+                     new Intent(TelephonyIntents.ACTION_SHOW_NOTICE_ECM_BLOCK_OTHERS), 0);
+             return;
+         }
+-        setEnabled(!airplaneModeEnabled);
+     }
+ 
+     private void setEnabled(boolean enabled) {
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java b/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java
+index ac7ef5dc308..d4df80819fb 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java
+@@ -93,7 +93,7 @@ public class QSFactoryImpl implements QSFactory {
+             case "battery":
+                 return new BatterySaverTile(mHost);
+             case "saver":
+-                return new DataSaverTile(mHost);
++                return null;
+             case "night":
+                 return new NightDisplayTile(mHost);
+             case "nfc":
+diff -Nurp frameworks_base_old/services/core/java/com/android/server/pm/InstantAppRegistry.java frameworks_base_new/services/core/java/com/android/server/pm/InstantAppRegistry.java
+--- frameworks_base_old/services/core/java/com/android/server/pm/InstantAppRegistry.java	2021-02-08 22:36:18.854324774 +0800
++++ frameworks_base_new/services/core/java/com/android/server/pm/InstantAppRegistry.java	2021-02-08 22:37:40.262324774 +0800
+@@ -1156,7 +1156,7 @@ class InstantAppRegistry {
+     }
+ 
+     private final class CookiePersistence extends Handler {
+-        private static final long PERSIST_COOKIE_DELAY_MILLIS = 1000L; /* one second */
++        private static final long PERSIST_COOKIE_DELAY_MILLIS = 200L; /* 0.2s */
+ 
+         // In case you wonder why we stash the cookies aside, we use
+         // the user id for the message id and the package for the payload.

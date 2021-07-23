@@ -1,0 +1,15 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff -uprN drm_gralloc_old/Android.mk drm_gralloc_new/Android.mk
+--- drm_gralloc_old/Android.mk	2020-07-18 09:41:39.890216088 +0800
++++ drm_gralloc_new/Android.mk	2020-07-18 09:43:10.234217287 +0800
+@@ -138,7 +138,7 @@ ifneq ($(filter r600g, $(DRM_GPU_DRIVERS
+ LOCAL_CFLAGS += -DENABLE_PIPE_R600
+ LOCAL_STATIC_LIBRARIES += \
+ 	libmesa_pipe_r600 \
+-	libmesa_pipe_radeon \
++	libmesa_pipe_radeonsi \
+ 	libmesa_winsys_radeon
+ endif
+ ifneq ($(filter vmwgfx, $(DRM_GPU_DRIVERS)),)

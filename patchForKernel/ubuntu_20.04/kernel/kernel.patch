@@ -1,0 +1,218 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 2 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+
+for kernel 5.4.30
+diff -Nur a/include/linux/memcontrol.h b/include/linux/memcontrol.h
+--- a/include/linux/memcontrol.h	2020-07-29 09:44:59.055491546 +0800
++++ b/include/linux/memcontrol.h	2020-07-29 09:43:56.795266410 +0800
+@@ -61,7 +61,9 @@
+ 	int priority;
+ 	unsigned int generation;
+ };
+-
++#ifndef CONFIG_MEMCG
++#define CONFIG_MEMCG
++#endif
+ #ifdef CONFIG_MEMCG
+ 
+ #define MEM_CGROUP_ID_SHIFT	16
+@@ -227,7 +229,7 @@
+ 	struct work_struct high_work;
+ 
+ 	unsigned long soft_limit;
+-
++	unsigned long cache_temp;
+ 	/* vmpressure notifications */
+ 	struct vmpressure vmpressure;
+ 
+diff -Nur a/include/linux/page_counter.h b/include/linux/page_counter.h
+--- a/include/linux/page_counter.h	2020-07-29 09:44:59.163491938 +0800
++++ b/include/linux/page_counter.h	2020-07-29 09:43:56.891266756 +0800
+@@ -52,6 +52,9 @@
+ bool page_counter_try_charge(struct page_counter *counter,
+ 			     unsigned long nr_pages,
+ 			     struct page_counter **fail);
++bool memcg_memory_try_charge(struct page_counter *counter, unsigned long  ex_cache,
++			     unsigned long nr_pages,
++			     struct page_counter **fail);
+ void page_counter_uncharge(struct page_counter *counter, unsigned long nr_pages);
+ void page_counter_set_min(struct page_counter *counter, unsigned long nr_pages);
+ void page_counter_set_low(struct page_counter *counter, unsigned long nr_pages);
+Binary files a/mm/hwpoison-inject.ko and b/mm/hwpoison-inject.ko differ
+diff -Nur a/mm/memcontrol.c b/mm/memcontrol.c
+--- a/mm/memcontrol.c	2021-03-24 10:53:36.000000000 +0000
++++ b/mm/memcontrol.c	2021-03-24 11:16:17.700000000 +0000
+@@ -2555,7 +2555,7 @@
+ 
+ 	if (!do_memsw_account() ||
+ 	    page_counter_try_charge(&memcg->memsw, batch, &counter)) {
+-		if (page_counter_try_charge(&memcg->memory, batch, &counter))
++		if (memcg_memory_try_charge(&memcg->memory, memcg->cache_temp,batch, &counter))
+ 			goto done_restock;
+ 		if (do_memsw_account())
+ 			page_counter_uncharge(&memcg->memsw, batch);
+@@ -3422,6 +3422,7 @@
+ 	RES_MAX_USAGE,
+ 	RES_FAILCNT,
+ 	RES_SOFT_LIMIT,
++	CACHE_CNT,
+ };
+ 
+ static u64 mem_cgroup_read_u64(struct cgroup_subsys_state *css,
+@@ -3429,7 +3430,7 @@
+ {
+ 	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+ 	struct page_counter *counter;
+-
++	u64 temp;
+ 	switch (MEMFILE_TYPE(cft->private)) {
+ 	case _MEM:
+ 		counter = &memcg->memory;
+@@ -3449,8 +3450,13 @@
+ 
+ 	switch (MEMFILE_ATTR(cft->private)) {
+ 	case RES_USAGE:
+-		if (counter == &memcg->memory)
+-			return (u64)mem_cgroup_usage(memcg, false) * PAGE_SIZE;
++		if (counter == &memcg->memory) {
++			temp = (u64)mem_cgroup_usage(memcg, false) - (u64)memcg->cache_temp;
++			if (temp > 0)
++				return temp * PAGE_SIZE;
++			else
++				return 0;
++		}
+ 		if (counter == &memcg->memsw)
+ 			return (u64)mem_cgroup_usage(memcg, true) * PAGE_SIZE;
+ 		return (u64)page_counter_read(counter) * PAGE_SIZE;
+@@ -3462,6 +3468,8 @@
+ 		return counter->failcnt;
+ 	case RES_SOFT_LIMIT:
+ 		return (u64)memcg->soft_limit * PAGE_SIZE;
++	case CACHE_CNT:
++		return (u64)memcg->cache_temp * PAGE_SIZE;
+ 	default:
+ 		BUG();
+ 	}
+@@ -3712,6 +3720,9 @@
+ 		memcg->soft_limit = nr_pages;
+ 		ret = 0;
+ 		break;
++	case CACHE_CNT:
++		memcg->cache_temp = memcg_page_state(memcg, MEMCG_CACHE);
++		break;
+ 	}
+ 	return ret ?: nbytes;
+ }
+@@ -3922,6 +3933,9 @@
+ 	for (i = 0; i < ARRAY_SIZE(memcg1_stats); i++) {
+ 		if (memcg1_stats[i] == MEMCG_SWAP && !do_memsw_account())
+ 			continue;
++			if (memcg1_stats[i] == MEMCG_CACHE) 
++		seq_printf(m, "%s %lu\n", memcg1_stat_names[i], 0);
++			else
+ 		seq_printf(m, "%s %lu\n", memcg1_stat_names[i],
+ 			   memcg_page_state_local(memcg, memcg1_stats[i]) *
+ 			   PAGE_SIZE);
+@@ -3951,6 +3965,9 @@
+ 	for (i = 0; i < ARRAY_SIZE(memcg1_stats); i++) {
+ 		if (memcg1_stats[i] == MEMCG_SWAP && !do_memsw_account())
+ 			continue;
++		if (memcg1_stats[i] == MEMCG_CACHE)
++			seq_printf(m, "total_%s %llu\n", memcg1_stat_names[i], 0);
++		else
+ 		seq_printf(m, "total_%s %llu\n", memcg1_stat_names[i],
+ 			   (u64)memcg_page_state(memcg, memcg1_stats[i]) *
+ 			   PAGE_SIZE);
+@@ -4827,6 +4844,12 @@
+ 		.read_u64 = mem_cgroup_read_u64,
+ 	},
+ 	{
++		.name = "cache_in_bytes",
++		.private = MEMFILE_PRIVATE(_MEM, CACHE_CNT),
++		.write = mem_cgroup_write,
++		.read_u64 = mem_cgroup_read_u64,
++	},
++	{
+ 		.name = "max_usage_in_bytes",
+ 		.private = MEMFILE_PRIVATE(_MEM, RES_MAX_USAGE),
+ 		.write = mem_cgroup_reset,
+@@ -6599,8 +6622,8 @@
+ 		return;
+ 
+ 	commit_charge(page, memcg, lrucare);
+-
+ 	local_irq_disable();
++	memcg->cache_temp = memcg_page_state(memcg, MEMCG_CACHE);
+ 	mem_cgroup_charge_statistics(memcg, page, compound, nr_pages);
+ 	memcg_check_events(memcg, page);
+ 	local_irq_enable();
+diff -Nur a/mm/page_counter.c b/mm/page_counter.c
+--- a/mm/page_counter.c	2019-11-25 00:32:01.000000000 +0000
++++ b/mm/page_counter.c	2021-03-24 11:18:36.348000000 +0000
+@@ -147,6 +147,57 @@
+ 	return false;
+ }
+ 
++bool memcg_memory_try_charge(struct page_counter *counter, unsigned long ex_cache,
++			     unsigned long nr_pages,
++			     struct page_counter **fail)
++{
++	struct page_counter *c;
++
++	for (c = counter; c; c = c->parent) {
++		long new;
++		/*
++		 * Charge speculatively to avoid an expensive CAS.  If
++		 * a bigger charge fails, it might falsely lock out a
++		 * racing smaller charge and send it into reclaim
++		 * early, but the error is limited to the difference
++		 * between the two sizes, which is less than 2M/4M in
++		 * case of a THP locking out a regular page charge.
++		 *
++		 * The atomic_long_add_return() implies a full memory
++		 * barrier between incrementing the count and reading
++		 * the limit.  When racing with page_counter_limit(),
++		 * we either see the new limit or the setter sees the
++		 * counter has changed and retries.
++		 */
++		new = atomic_long_add_return(nr_pages, &c->usage);
++		if (new > (c->max + ex_cache)) {
++			atomic_long_sub(nr_pages, &c->usage);
++			propagate_protected_usage(counter, new);
++			/*
++			 * This is racy, but we can live with some
++			 * inaccuracy in the failcnt.
++			 */
++			c->failcnt++;
++			*fail = c;
++			goto failed;
++		}
++		propagate_protected_usage(counter, new);
++		/*
++		 * Just like with failcnt, we can live with some
++		 * inaccuracy in the watermark.
++		 */
++		if (new > c->watermark)
++			c->watermark = new;
++	}
++	return true;
++
++failed:
++	for (c = counter; c != *fail; c = c->parent)
++		page_counter_cancel(c, nr_pages);
++
++	return false;
++}
++
+ /**
+  * page_counter_uncharge - hierarchically uncharge pages
+  * @counter: counter

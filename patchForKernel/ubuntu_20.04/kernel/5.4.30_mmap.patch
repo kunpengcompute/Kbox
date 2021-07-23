@@ -1,0 +1,148 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+for kernel 5.4.30 
+must patch after ubuntu-5.4.0-18.22.patch
+--- c/arch/arm64/mm/mmap.c	2021-03-24 09:27:07.088000000 +0000
++++ a/arch/arm64/mm/mmap.c	2021-03-30 13:14:36.576000000 +0000
+@@ -22,6 +22,11 @@
+ 
+ #include <asm/cputype.h>
+ 
++#ifndef V39_TASK_SIZE
++#define V39_TASK_SIZE (UL(1) << 39)
++#define V39_TASK_UNMAPPED_BASE PAGE_ALIGN(V39_TASK_SIZE / 4)
++#endif
++
+ #ifdef CONFIG_EXAGEAR_BT
+ /* Definitions for Exagear's guest mmap area */
+ #define EXAGEAR_TASK_UNMAPPED_BASE        PAGE_ALIGN(TASK_SIZE_32 / 4)
+@@ -98,7 +103,7 @@ arch_get_unmapped_area(struct file *filp
+ 	struct vm_unmapped_area_info info;
+ 	bool bad_addr = false;
+ 
+-	if (len > TASK_SIZE - mmap_min_addr)
++	if (len > V39_TASK_SIZE - mmap_min_addr)
+ 		return -ENOMEM;
+ 
+ 	/*
+@@ -114,7 +119,7 @@ arch_get_unmapped_area(struct file *filp
+ 	if (addr && !bad_addr) {
+ 		addr = PAGE_ALIGN(addr);
+ 		vma = find_vma_prev(mm, addr, &prev);
+-		if (TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
++		if (V39_TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
+ 		    (!vma || addr + len <= vm_start_gap(vma)) &&
+ 		    (!prev || addr >= vm_end_gap(prev)))
+ 			return addr;
+@@ -127,7 +132,7 @@ arch_get_unmapped_area(struct file *filp
+ 		info.high_limit = TASK_SIZE_32 - PAGE_SIZE;
+ 	} else {
+ 		info.low_limit = mm->mmap_base;
+-		info.high_limit = TASK_SIZE;
++		info.high_limit = V39_TASK_SIZE;
+ 	}
+ 	info.align_mask = 0;
+ 	return vm_unmapped_area(&info);
+@@ -149,7 +154,7 @@ arch_get_unmapped_area_topdown(struct fi
+ 	bool bad_addr = false;
+ 
+ 	/* requested length too big for entire address space */
+-	if (len > TASK_SIZE - mmap_min_addr)
++	if (len > V39_TASK_SIZE - mmap_min_addr)
+ 		return -ENOMEM;
+ 
+ 	/*
+@@ -166,7 +171,7 @@ arch_get_unmapped_area_topdown(struct fi
+ 	if (addr && !bad_addr) {
+ 		addr = PAGE_ALIGN(addr);
+ 		vma = find_vma_prev(mm, addr, &prev);
+-		if (TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
++		if (V39_TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
+ 				(!vma || addr + len <= vm_start_gap(vma)) &&
+ 				(!prev || addr >= vm_end_gap(prev)))
+ 			return addr;
+@@ -195,8 +200,8 @@ arch_get_unmapped_area_topdown(struct fi
+ 			info.low_limit = EXAGEAR_TASK_UNMAPPED_BASE;
+ 			info.high_limit = TASK_SIZE_32 - PAGE_SIZE;
+ 		} else {
+-			info.low_limit = TASK_UNMAPPED_BASE;
+-			info.high_limit = TASK_SIZE;
++			info.low_limit = V39_TASK_UNMAPPED_BASE;
++			info.high_limit = V39_TASK_SIZE;
+ 		}
+ 		addr = vm_unmapped_area(&info);
+ 	}
+@@ -216,7 +221,7 @@ hugetlb_get_unmapped_area(struct file *f
+ 
+ 	if (len & ~huge_page_mask(h))
+ 		return -EINVAL;
+-	if (len > TASK_SIZE)
++	if (len > V39_TASK_SIZE)
+ 		return -ENOMEM;
+ 
+ 	/*
+@@ -246,8 +251,8 @@ hugetlb_get_unmapped_area(struct file *f
+ 		info.low_limit = EXAGEAR_TASK_UNMAPPED_BASE;
+ 		info.high_limit = TASK_SIZE_32 - PAGE_SIZE;
+ 	} else {
+-		info.low_limit = TASK_UNMAPPED_BASE;
+-		info.high_limit = TASK_SIZE;
++		info.low_limit = V39_TASK_UNMAPPED_BASE;
++		info.high_limit = V39_TASK_SIZE;
+ 	}
+ 	info.align_mask = PAGE_MASK & ~huge_page_mask(h);
+ 	info.align_offset = 0;
+--- c/arch/arm64/include/asm/elf.h	2021-03-24 09:27:06.220000000 +0000
++++ a/arch/arm64/include/asm/elf.h	2021-03-30 12:11:04.616000000 +0000
+@@ -106,11 +106,7 @@
+  * 64-bit, this is above 4GB to leave the entire 32-bit address
+  * space open for things that want to use the area for 32-bit pointers.
+  */
+-#ifdef CONFIG_ARM64_FORCE_52BIT
+-#define ELF_ET_DYN_BASE		(2 * TASK_SIZE_64 / 3)
+-#else
+-#define ELF_ET_DYN_BASE		(2 * DEFAULT_MAP_WINDOW_64 / 3)
+-#endif /* CONFIG_ARM64_FORCE_52BIT */
++#define ELF_ET_DYN_BASE         (2 * (UL(1) << 39) / 3)
+ 
+ #ifndef __ASSEMBLY__
+ 
+--- c/mm/util.c	2021-03-24 09:30:56.648000000 +0000
++++ a/mm/util.c	2021-03-30 12:47:51.468000000 +0000
+@@ -362,6 +362,12 @@ static int mmap_is_legacy(struct rlimit
+ #define MIN_GAP		(SZ_128M)
+ #define MAX_GAP		(STACK_TOP / 6 * 5)
+ 
++#ifndef V39_TASK_SIZE
++#define V39_TASK_SIZE (UL(1) << 39)
++#define V39_TASK_UNMAPPED_BASE PAGE_ALIGN(V39_TASK_SIZE / 4)
++#endif
++#define V39_MAX_GAP (V39_TASK_SIZE / 6 * 5)
++
+ static unsigned long mmap_base(unsigned long rnd, struct rlimit *rlim_stack)
+ {
+ 	unsigned long gap = rlim_stack->rlim_cur;
+@@ -377,10 +383,10 @@ static unsigned long mmap_base(unsigned
+ 
+ 	if (gap < MIN_GAP)
+ 		gap = MIN_GAP;
+-	else if (gap > MAX_GAP)
+-		gap = MAX_GAP;
++	else if (gap > V39_MAX_GAP)
++		gap = V39_MAX_GAP;
+ 
+-	return PAGE_ALIGN(STACK_TOP - gap - rnd);
++	return PAGE_ALIGN(V39_TASK_SIZE - gap - rnd);
+ }
+ 
+ #ifdef CONFIG_EXAGEAR_BT
+@@ -429,7 +435,7 @@ void arch_pick_mmap_layout(struct mm_str
+  * 	 	 * if the expected stack growth is unlimited:
+  * 	 	 	 */
+ 	if (mmap_is_legacy(rlim_stack)) {
+-		mm->mmap_base = TASK_UNMAPPED_BASE + random_factor;
++		mm->mmap_base = V39_TASK_UNMAPPED_BASE + random_factor;
+ 		mm->get_unmapped_area = arch_get_unmapped_area;
+ #ifdef CONFIG_EXAGEAR_BT
+ 		mm->context.exagear_mmap_base = EXAGEAR_TASK_UNMAPPED_BASE +

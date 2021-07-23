@@ -1,0 +1,1589 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+
+
+diff --git hardware_interfaces_old/audio/common/all-versions/default/service/Android.mk hardware_interfaces_new/audio/common/all-versions/default/service/Android.mk
+deleted file mode 100644
+index 43d7fe1..0000000
+--- hardware_interfaces_old/audio/common/all-versions/default/service/Android.mk
++++ /dev/null
+@@ -1,58 +0,0 @@
+-#
+-# Copyright (C) 2016 The Android Open Source Project
+-#
+-# Licensed under the Apache License, Version 2.0 (the "License");
+-# you may not use this file except in compliance with the License.
+-# You may obtain a copy of the License at
+-#
+-#      http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-
+-
+-LOCAL_PATH := $(call my-dir)
+-
+-#
+-# Service
+-#
+-
+-include $(CLEAR_VARS)
+-LOCAL_MODULE := android.hardware.audio@2.0-service
+-LOCAL_INIT_RC := android.hardware.audio@2.0-service.rc
+-LOCAL_MODULE_RELATIVE_PATH := hw
+-LOCAL_PROPRIETARY_MODULE := true
+-LOCAL_SRC_FILES := \
+-    service.cpp
+-
+-LOCAL_CFLAGS := -Wall -Werror
+-
+-LOCAL_SHARED_LIBRARIES := \
+-    libbinder \
+-    libhidlbase \
+-    libhidltransport \
+-    liblog \
+-    libutils \
+-    libhardware \
+-    android.hardware.audio@2.0 \
+-    android.hardware.audio@4.0 \
+-    android.hardware.audio.common@2.0 \
+-    android.hardware.audio.common@4.0 \
+-    android.hardware.audio.effect@2.0 \
+-    android.hardware.audio.effect@4.0 \
+-    android.hardware.bluetooth.a2dp@1.0 \
+-    android.hardware.soundtrigger@2.0 \
+-    android.hardware.soundtrigger@2.1
+-
+-# Can not switch to Android.bp until AUDIOSERVER_MULTILIB
+-# is deprecated as build config variable are not supported
+-ifeq ($(strip $(AUDIOSERVER_MULTILIB)),)
+-LOCAL_MULTILIB := 32
+-else
+-LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
+-endif
+-
+-include $(BUILD_EXECUTABLE)
+diff --git hardware_interfaces_old/audio/common/all-versions/default/service/android.hardware.audio@2.0-service.rc hardware_interfaces_new/audio/common/all-versions/default/service/android.hardware.audio@2.0-service.rc
+deleted file mode 100644
+index 8217b94..0000000
+--- hardware_interfaces_old/audio/common/all-versions/default/service/android.hardware.audio@2.0-service.rc
++++ /dev/null
+@@ -1,13 +0,0 @@
+-service vendor.audio-hal-2-0 /vendor/bin/hw/android.hardware.audio@2.0-service
+-    class hal
+-    user audioserver
+-    # media gid needed for /dev/fm (radio) and for /data/misc/media (tee)
+-    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct
+-    ioprio rt 4
+-    writepid /dev/cpuset/foreground/tasks /dev/stune/foreground/tasks
+-    # audioflinger restarts itself when it loses connection with the hal
+-    # and its .rc file has an "onrestart restart audio-hal" rule, thus
+-    # an additional auto-restart from the init process isn't needed.
+-    oneshot
+-    interface android.hardware.audio@4.0::IDevicesFactory default
+-    interface android.hardware.audio@2.0::IDevicesFactory default
+diff --git hardware_interfaces_old/audio/common/all-versions/default/service/service.cpp hardware_interfaces_new/audio/common/all-versions/default/service/service.cpp
+deleted file mode 100644
+index c7ce638..0000000
+--- hardware_interfaces_old/audio/common/all-versions/default/service/service.cpp
++++ /dev/null
+@@ -1,57 +0,0 @@
+-/*
+- * Copyright (C) 2016 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#define LOG_TAG "audiohalservice"
+-
+-#include <android/hardware/audio/2.0/IDevicesFactory.h>
+-#include <android/hardware/audio/4.0/IDevicesFactory.h>
+-#include <android/hardware/audio/effect/2.0/IEffectsFactory.h>
+-#include <android/hardware/audio/effect/4.0/IEffectsFactory.h>
+-#include <android/hardware/bluetooth/a2dp/1.0/IBluetoothAudioOffload.h>
+-#include <android/hardware/soundtrigger/2.0/ISoundTriggerHw.h>
+-#include <android/hardware/soundtrigger/2.1/ISoundTriggerHw.h>
+-#include <binder/ProcessState.h>
+-#include <hidl/HidlTransportSupport.h>
+-#include <hidl/LegacySupport.h>
+-
+-using namespace android::hardware;
+-using android::OK;
+-
+-int main(int /* argc */, char* /* argv */ []) {
+-    android::ProcessState::initWithDriver("/dev/vndbinder");
+-    // start a threadpool for vndbinder interactions
+-    android::ProcessState::self()->startThreadPool();
+-    configureRpcThreadpool(16, true /*callerWillJoin*/);
+-
+-    bool fail = registerPassthroughServiceImplementation<audio::V4_0::IDevicesFactory>() != OK &&
+-                registerPassthroughServiceImplementation<audio::V2_0::IDevicesFactory>() != OK;
+-    LOG_ALWAYS_FATAL_IF(fail, "Could not register audio core API 2.0 nor 4.0");
+-
+-    fail = registerPassthroughServiceImplementation<audio::effect::V4_0::IEffectsFactory>() != OK &&
+-           registerPassthroughServiceImplementation<audio::effect::V2_0::IEffectsFactory>() != OK,
+-    LOG_ALWAYS_FATAL_IF(fail, "Could not register audio effect API 2.0 nor 4.0");
+-
+-    fail = registerPassthroughServiceImplementation<soundtrigger::V2_1::ISoundTriggerHw>() != OK &&
+-           registerPassthroughServiceImplementation<soundtrigger::V2_0::ISoundTriggerHw>() != OK,
+-    ALOGW_IF(fail, "Could not register soundtrigger API 2.0 nor 2.1");
+-
+-    fail =
+-        registerPassthroughServiceImplementation<bluetooth::a2dp::V1_0::IBluetoothAudioOffload>() !=
+-        OK;
+-    ALOGW_IF(fail, "Could not register Bluetooth audio offload 1.0");
+-
+-    joinRpcThreadpool();
+-}
+diff --git hardware_interfaces_old/audio/service/Android.mk hardware_interfaces_new/audio/service/Android.mk
+new file mode 100644
+index 0000000..43d7fe1
+--- /dev/null
++++ hardware_interfaces_new/audio/service/Android.mk
+@@ -0,0 +1,58 @@
++#
++# Copyright (C) 2016 The Android Open Source Project
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++
++LOCAL_PATH := $(call my-dir)
++
++#
++# Service
++#
++
++include $(CLEAR_VARS)
++LOCAL_MODULE := android.hardware.audio@2.0-service
++LOCAL_INIT_RC := android.hardware.audio@2.0-service.rc
++LOCAL_MODULE_RELATIVE_PATH := hw
++LOCAL_PROPRIETARY_MODULE := true
++LOCAL_SRC_FILES := \
++    service.cpp
++
++LOCAL_CFLAGS := -Wall -Werror
++
++LOCAL_SHARED_LIBRARIES := \
++    libbinder \
++    libhidlbase \
++    libhidltransport \
++    liblog \
++    libutils \
++    libhardware \
++    android.hardware.audio@2.0 \
++    android.hardware.audio@4.0 \
++    android.hardware.audio.common@2.0 \
++    android.hardware.audio.common@4.0 \
++    android.hardware.audio.effect@2.0 \
++    android.hardware.audio.effect@4.0 \
++    android.hardware.bluetooth.a2dp@1.0 \
++    android.hardware.soundtrigger@2.0 \
++    android.hardware.soundtrigger@2.1
++
++# Can not switch to Android.bp until AUDIOSERVER_MULTILIB
++# is deprecated as build config variable are not supported
++ifeq ($(strip $(AUDIOSERVER_MULTILIB)),)
++LOCAL_MULTILIB := 32
++else
++LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
++endif
++
++include $(BUILD_EXECUTABLE)
+diff --git hardware_interfaces_old/audio/service/android.hardware.audio@2.0-service.rc hardware_interfaces_new/audio/service/android.hardware.audio@2.0-service.rc
+new file mode 100644
+index 0000000..8217b94
+--- /dev/null
++++ hardware_interfaces_new/audio/service/android.hardware.audio@2.0-service.rc
+@@ -0,0 +1,13 @@
++service vendor.audio-hal-2-0 /vendor/bin/hw/android.hardware.audio@2.0-service
++    class hal
++    user audioserver
++    # media gid needed for /dev/fm (radio) and for /data/misc/media (tee)
++    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct
++    ioprio rt 4
++    writepid /dev/cpuset/foreground/tasks /dev/stune/foreground/tasks
++    # audioflinger restarts itself when it loses connection with the hal
++    # and its .rc file has an "onrestart restart audio-hal" rule, thus
++    # an additional auto-restart from the init process isn't needed.
++    oneshot
++    interface android.hardware.audio@4.0::IDevicesFactory default
++    interface android.hardware.audio@2.0::IDevicesFactory default
+diff --git hardware_interfaces_old/audio/service/service.cpp b/audio/service/service.cpp
+new file mode 100644
+index 0000000..c7ce638
+--- /dev/null
++++ hardware_interfaces_new/audio/service/service.cpp
+@@ -0,0 +1,57 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "audiohalservice"
++
++#include <android/hardware/audio/2.0/IDevicesFactory.h>
++#include <android/hardware/audio/4.0/IDevicesFactory.h>
++#include <android/hardware/audio/effect/2.0/IEffectsFactory.h>
++#include <android/hardware/audio/effect/4.0/IEffectsFactory.h>
++#include <android/hardware/bluetooth/a2dp/1.0/IBluetoothAudioOffload.h>
++#include <android/hardware/soundtrigger/2.0/ISoundTriggerHw.h>
++#include <android/hardware/soundtrigger/2.1/ISoundTriggerHw.h>
++#include <binder/ProcessState.h>
++#include <hidl/HidlTransportSupport.h>
++#include <hidl/LegacySupport.h>
++
++using namespace android::hardware;
++using android::OK;
++
++int main(int /* argc */, char* /* argv */ []) {
++    android::ProcessState::initWithDriver("/dev/vndbinder");
++    // start a threadpool for vndbinder interactions
++    android::ProcessState::self()->startThreadPool();
++    configureRpcThreadpool(16, true /*callerWillJoin*/);
++
++    bool fail = registerPassthroughServiceImplementation<audio::V4_0::IDevicesFactory>() != OK &&
++                registerPassthroughServiceImplementation<audio::V2_0::IDevicesFactory>() != OK;
++    LOG_ALWAYS_FATAL_IF(fail, "Could not register audio core API 2.0 nor 4.0");
++
++    fail = registerPassthroughServiceImplementation<audio::effect::V4_0::IEffectsFactory>() != OK &&
++           registerPassthroughServiceImplementation<audio::effect::V2_0::IEffectsFactory>() != OK,
++    LOG_ALWAYS_FATAL_IF(fail, "Could not register audio effect API 2.0 nor 4.0");
++
++    fail = registerPassthroughServiceImplementation<soundtrigger::V2_1::ISoundTriggerHw>() != OK &&
++           registerPassthroughServiceImplementation<soundtrigger::V2_0::ISoundTriggerHw>() != OK,
++    ALOGW_IF(fail, "Could not register soundtrigger API 2.0 nor 2.1");
++
++    fail =
++        registerPassthroughServiceImplementation<bluetooth::a2dp::V1_0::IBluetoothAudioOffload>() !=
++        OK;
++    ALOGW_IF(fail, "Could not register Bluetooth audio offload 1.0");
++
++    joinRpcThreadpool();
++}
+diff --git hardware_interfaces_old/configstore/1.1/default/Android.mk hardware_interfaces_new/configstore/1.1/default/Android.mk
+deleted file mode 100644
+index 40f621b..0000000
+--- hardware_interfaces_old/configstore/1.1/default/Android.mk
++++ /dev/null
+@@ -1,38 +0,0 @@
+-LOCAL_PATH := $(call my-dir)
+-
+-################################################################################
+-include $(CLEAR_VARS)
+-LOCAL_MODULE := android.hardware.configstore@1.1-service
+-# seccomp is not required for coverage build.
+-ifneq ($(NATIVE_COVERAGE),true)
+-LOCAL_REQUIRED_MODULES_arm64 := configstore@1.1.policy
+-endif
+-LOCAL_PROPRIETARY_MODULE := true
+-LOCAL_MODULE_CLASS := EXECUTABLES
+-LOCAL_MODULE_RELATIVE_PATH := hw
+-LOCAL_INIT_RC := android.hardware.configstore@1.1-service.rc
+-LOCAL_SRC_FILES:= service.cpp
+-
+-include $(LOCAL_PATH)/surfaceflinger.mk
+-
+-LOCAL_SHARED_LIBRARIES := \
+-    libhidlbase \
+-    libhidltransport \
+-    libbase \
+-    libhwminijail \
+-    liblog \
+-    libutils \
+-    android.hardware.configstore@1.0 \
+-    android.hardware.configstore@1.1
+-
+-include $(BUILD_EXECUTABLE)
+-
+-# seccomp filter for configstore
+-ifeq ($(TARGET_ARCH), $(filter $(TARGET_ARCH), arm64))
+-include $(CLEAR_VARS)
+-LOCAL_MODULE := configstore@1.1.policy
+-LOCAL_MODULE_CLASS := ETC
+-LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/etc/seccomp_policy
+-LOCAL_SRC_FILES := seccomp_policy/configstore@1.1-$(TARGET_ARCH).policy
+-include $(BUILD_PREBUILT)
+-endif
+diff --git hardware_interfaces_old/configstore/1.1/default/SurfaceFlingerConfigs.cpp hardware_interfaces_new/configstore/1.1/default/SurfaceFlingerConfigs.cpp
+deleted file mode 100644
+index da3081c..0000000
+--- hardware_interfaces_old/configstore/1.1/default/SurfaceFlingerConfigs.cpp
++++ /dev/null
+@@ -1,200 +0,0 @@
+-/*
+- * Copyright (C) 2018 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.1 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.1
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#include "SurfaceFlingerConfigs.h"
+-
+-#include <android/hardware/configstore/1.1/types.h>
+-#include <log/log.h>
+-
+-namespace android {
+-namespace hardware {
+-namespace configstore {
+-namespace V1_1 {
+-namespace implementation {
+-
+-// Methods from ::android::hardware::configstore::V1_0::ISurfaceFlingerConfigs
+-// follow.
+-Return<void> SurfaceFlingerConfigs::vsyncEventPhaseOffsetNs(vsyncEventPhaseOffsetNs_cb _hidl_cb) {
+-#ifdef VSYNC_EVENT_PHASE_OFFSET_NS
+-    _hidl_cb({true, VSYNC_EVENT_PHASE_OFFSET_NS});
+-#else
+-    _hidl_cb({false, 0});
+-#endif
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::vsyncSfEventPhaseOffsetNs(vsyncEventPhaseOffsetNs_cb _hidl_cb) {
+-#ifdef SF_VSYNC_EVENT_PHASE_OFFSET_NS
+-    _hidl_cb({true, SF_VSYNC_EVENT_PHASE_OFFSET_NS});
+-#else
+-    _hidl_cb({false, 0});
+-#endif
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::useContextPriority(useContextPriority_cb _hidl_cb) {
+-#ifdef USE_CONTEXT_PRIORITY
+-    _hidl_cb({true, USE_CONTEXT_PRIORITY});
+-#else
+-    _hidl_cb({false, false});
+-#endif
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers(
+-    maxFrameBufferAcquiredBuffers_cb _hidl_cb) {
+-#ifdef NUM_FRAMEBUFFER_SURFACE_BUFFERS
+-    _hidl_cb({true, NUM_FRAMEBUFFER_SURFACE_BUFFERS});
+-#else
+-    _hidl_cb({false, 0});
+-#endif
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::hasWideColorDisplay(hasWideColorDisplay_cb _hidl_cb) {
+-    bool value = false;
+-#ifdef HAS_WIDE_COLOR_DISPLAY
+-    value = true;
+-#endif
+-    _hidl_cb({true, value});
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::hasSyncFramework(hasSyncFramework_cb _hidl_cb) {
+-    bool value = true;
+-#ifdef RUNNING_WITHOUT_SYNC_FRAMEWORK
+-    value = false;
+-#endif
+-    _hidl_cb({true, value});
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::hasHDRDisplay(hasHDRDisplay_cb _hidl_cb) {
+-    bool value = false;
+-#ifdef HAS_HDR_DISPLAY
+-    value = true;
+-#endif
+-    _hidl_cb({true, value});
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs(
+-    presentTimeOffsetFromVSyncNs_cb _hidl_cb) {
+-#ifdef PRESENT_TIME_OFFSET_FROM_VSYNC_NS
+-    _hidl_cb({true, PRESENT_TIME_OFFSET_FROM_VSYNC_NS});
+-#else
+-    _hidl_cb({false, 0});
+-#endif
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::useHwcForRGBtoYUV(useHwcForRGBtoYUV_cb _hidl_cb) {
+-    bool value = false;
+-#ifdef FORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS
+-    value = true;
+-#endif
+-    _hidl_cb({true, value});
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::maxVirtualDisplaySize(maxVirtualDisplaySize_cb _hidl_cb) {
+-    uint64_t maxSize = 0;
+-#ifdef MAX_VIRTUAL_DISPLAY_DIMENSION
+-    maxSize = MAX_VIRTUAL_DISPLAY_DIMENSION;
+-    _hidl_cb({true, maxSize});
+-#else
+-    _hidl_cb({false, maxSize});
+-#endif
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::useVrFlinger(useVrFlinger_cb _hidl_cb) {
+-    bool value = false;
+-    bool specified = false;
+-#ifdef USE_VR_FLINGER
+-    value = true;
+-    specified = true;
+-#endif
+-    _hidl_cb({specified, value});
+-    return Void();
+-}
+-
+-Return<void> SurfaceFlingerConfigs::startGraphicsAllocatorService(
+-    startGraphicsAllocatorService_cb _hidl_cb) {
+-    bool value = false;
+-#ifdef START_GRAPHICS_ALLOCATOR_SERVICE
+-    value = true;
+-#endif
+-    _hidl_cb({true, value});
+-    return Void();
+-}
+-
+-// Methods from ::android::hardware::configstore::V1_1::ISurfaceFlingerConfigs
+-// follow.
+-
+-#ifdef PRIMARY_DISPLAY_ORIENTATION
+-static_assert(PRIMARY_DISPLAY_ORIENTATION == 0 || PRIMARY_DISPLAY_ORIENTATION == 90 ||
+-                  PRIMARY_DISPLAY_ORIENTATION == 180 || PRIMARY_DISPLAY_ORIENTATION == 270,
+-              "Primary display orientation must be 0/90/180/270");
+-#endif
+-
+-Return<void> SurfaceFlingerConfigs::primaryDisplayOrientation(
+-    primaryDisplayOrientation_cb _hidl_cb) {
+-    using ::android::hardware::configstore::V1_1::DisplayOrientation;
+-
+-    bool specified = false;
+-    DisplayOrientation value = DisplayOrientation::ORIENTATION_0;
+-
+-    int orientation = 0;
+-#ifdef PRIMARY_DISPLAY_ORIENTATION
+-    specified = true;
+-    orientation = PRIMARY_DISPLAY_ORIENTATION;
+-#endif
+-
+-    switch (orientation) {
+-        case 0: {
+-            value = DisplayOrientation::ORIENTATION_0;
+-            break;
+-        }
+-        case 90: {
+-            value = DisplayOrientation::ORIENTATION_90;
+-            break;
+-        }
+-        case 180: {
+-            value = DisplayOrientation::ORIENTATION_180;
+-            break;
+-        }
+-        case 270: {
+-            value = DisplayOrientation::ORIENTATION_270;
+-            break;
+-        }
+-        default: {
+-            // statically checked above -> memory corruption
+-            LOG_ALWAYS_FATAL("Invalid orientation %d", orientation);
+-        }
+-    }
+-
+-    _hidl_cb({specified, value});
+-    return Void();
+-}
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-}  // namespace implementation
+-}  // namespace V1_1
+-}  // namespace configstore
+-}  // namespace hardware
+-}  // namespace android
+diff --git hardware_interfaces_old/configstore/1.1/default/SurfaceFlingerConfigs.h hardware_interfaces_new/configstore/1.1/default/SurfaceFlingerConfigs.h
+deleted file mode 100644
+index 3714e81..0000000
+--- hardware_interfaces_old/configstore/1.1/default/SurfaceFlingerConfigs.h
++++ /dev/null
+@@ -1,48 +0,0 @@
+-#ifndef ANDROID_HARDWARE_CONFIGSTORE_V1_1_SURFACEFLINGERCONFIGS_H
+-#define ANDROID_HARDWARE_CONFIGSTORE_V1_1_SURFACEFLINGERCONFIGS_H
+-
+-#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+-
+-namespace android {
+-namespace hardware {
+-namespace configstore {
+-namespace V1_1 {
+-namespace implementation {
+-
+-using ::android::hardware::configstore::V1_1::ISurfaceFlingerConfigs;
+-using ::android::hardware::Return;
+-using ::android::hardware::Void;
+-using ::android::sp;
+-
+-struct SurfaceFlingerConfigs : public ISurfaceFlingerConfigs {
+-    // Methods from
+-    // ::android::hardware::configstore::V1_0::ISurfaceFlingerConfigs follow.
+-    Return<void> vsyncEventPhaseOffsetNs(vsyncEventPhaseOffsetNs_cb _hidl_cb) override;
+-    Return<void> vsyncSfEventPhaseOffsetNs(vsyncSfEventPhaseOffsetNs_cb _hidl_cb) override;
+-    Return<void> useContextPriority(useContextPriority_cb _hidl_cb) override;
+-    Return<void> hasWideColorDisplay(hasWideColorDisplay_cb _hidl_cb) override;
+-    Return<void> hasHDRDisplay(hasHDRDisplay_cb _hidl_cb) override;
+-    Return<void> presentTimeOffsetFromVSyncNs(presentTimeOffsetFromVSyncNs_cb _hidl_cb) override;
+-    Return<void> useHwcForRGBtoYUV(useHwcForRGBtoYUV_cb _hidl_cb) override;
+-    Return<void> maxVirtualDisplaySize(maxVirtualDisplaySize_cb _hidl_cb) override;
+-    Return<void> hasSyncFramework(hasSyncFramework_cb _hidl_cb) override;
+-    Return<void> useVrFlinger(useVrFlinger_cb _hidl_cb) override;
+-    Return<void> maxFrameBufferAcquiredBuffers(maxFrameBufferAcquiredBuffers_cb _hidl_cb) override;
+-    Return<void> startGraphicsAllocatorService(startGraphicsAllocatorService_cb _hidl_cb) override;
+-
+-    // Methods from
+-    // ::android::hardware::configstore::V1_1::ISurfaceFlingerConfigs follow.
+-    Return<void> primaryDisplayOrientation(primaryDisplayOrientation_cb _hidl_cb) override;
+-
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-};
+-
+-}  // namespace implementation
+-}  // namespace V1_1
+-}  // namespace configstore
+-}  // namespace hardware
+-}  // namespace android
+-
+-#endif  // ANDROID_HARDWARE_CONFIGSTORE_V1_1_SURFACEFLINGERCONFIGS_H
+diff --git hardware_interfaces_old/configstore/1.1/default/android.hardware.configstore@1.1-service.rc hardware_interfaces_new/configstore/1.1/default/android.hardware.configstore@1.1-service.rc
+deleted file mode 100644
+index 105678a..0000000
+--- hardware_interfaces_old/configstore/1.1/default/android.hardware.configstore@1.1-service.rc
++++ /dev/null
+@@ -1,4 +0,0 @@
+-service vendor.configstore-hal /vendor/bin/hw/android.hardware.configstore@1.1-service
+-    class hal animation
+-    user system
+-    group system
+diff --git hardware_interfaces_old/configstore/1.1/default/seccomp_policy/configstore@1.1-arm64.policy hardware_interfaces_new/configstore/1.1/default/seccomp_policy/configstore@1.1-arm64.policy
+deleted file mode 100644
+index d523a1a..0000000
+--- hardware_interfaces_old/configstore/1.1/default/seccomp_policy/configstore@1.1-arm64.policy
++++ /dev/null
+@@ -1,55 +0,0 @@
+-# Copyright (C) 2017 The Android Open Source Project
+-#
+-# Licensed under the Apache License, Version 2.0 (the "License");
+-# you may not use this file except in compliance with the License.
+-# You may obtain a copy of the License at
+-#
+-#      http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-
+-futex: 1
+-# ioctl: arg1 == BINDER_WRITE_READ
+-ioctl: arg1 == 0xc0306201
+-# prctl: arg0 == PR_SET_NAME || arg0 == PR_SET_VMA || arg0 == PR_SET_TIMERSLACK
+-# || arg0 == PR_GET_NO_NEW_PRIVS # used by crash_dump
+-# prctl: arg0 == 15 || arg0 == 0x53564d41 || arg0 == 29 || arg0 == 39
+-# TODO(b/68162846) reduce scope of prctl() based on arguments
+-prctl: 1
+-openat: 1
+-mmap: 1
+-mprotect: 1
+-close: 1
+-getuid: 1
+-read: 1
+-faccessat: 1
+-write: 1
+-fstat: 1
+-clone: 1
+-sched_setscheduler: 1
+-munmap: 1
+-lseek: 1
+-sigaltstack: 1
+-writev: 1
+-setpriority: 1
+-restart_syscall: 1
+-exit: 1
+-exit_group: 1
+-rt_sigreturn: 1
+-getrlimit: 1
+-madvise: 1
+-getdents64: 1
+-clock_gettime: 1
+-
+-# used during process crash by crash_dump to dump process info
+-rt_sigprocmask: 1
+-rt_sigaction: 1
+-# socket: arg0 == AF_LOCAL
+-socket: arg0 == 1
+-connect: 1
+-recvmsg: 1
+-rt_tgsigqueueinfo: 1
+diff --git hardware_interfaces_old/configstore/1.1/default/service.cpp hardware_interfaces_new/configstore/1.1/default/service.cpp
+deleted file mode 100644
+index 3b4e774..0000000
+--- hardware_interfaces_old/configstore/1.1/default/service.cpp
++++ /dev/null
+@@ -1,46 +0,0 @@
+-/*
+- * Copyright (C) 2018 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.1 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.1
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#define LOG_TAG "android.hardware.configstore@1.1-service"
+-
+-#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+-#include <hidl/HidlTransportSupport.h>
+-#include <hwminijail/HardwareMinijail.h>
+-
+-#include "SurfaceFlingerConfigs.h"
+-
+-using android::hardware::configureRpcThreadpool;
+-using android::hardware::joinRpcThreadpool;
+-using android::hardware::configstore::V1_1::ISurfaceFlingerConfigs;
+-using android::hardware::configstore::V1_1::implementation::SurfaceFlingerConfigs;
+-using android::hardware::SetupMinijail;
+-using android::sp;
+-using android::status_t;
+-using android::OK;
+-
+-int main() {
+-    configureRpcThreadpool(10, true);
+-
+-    SetupMinijail("/vendor/etc/seccomp_policy/configstore@1.1.policy");
+-
+-    sp<ISurfaceFlingerConfigs> surfaceFlingerConfigs = new SurfaceFlingerConfigs;
+-    status_t status = surfaceFlingerConfigs->registerAsService();
+-    LOG_ALWAYS_FATAL_IF(status != OK, "Could not register ISurfaceFlingerConfigs");
+-
+-    // other interface registration comes here
+-    joinRpcThreadpool();
+-    return 0;
+-}
+diff --git hardware_interfaces_old/configstore/1.1/default/surfaceflinger.mk hardware_interfaces_new/configstore/1.1/default/surfaceflinger.mk
+deleted file mode 100644
+index 51f06e1..0000000
+--- hardware_interfaces_old/configstore/1.1/default/surfaceflinger.mk
++++ /dev/null
+@@ -1,64 +0,0 @@
+-
+-LOCAL_SRC_FILES += SurfaceFlingerConfigs.cpp
+-
+-ifneq ($(VSYNC_EVENT_PHASE_OFFSET_NS),)
+-    LOCAL_CFLAGS += -DVSYNC_EVENT_PHASE_OFFSET_NS=$(VSYNC_EVENT_PHASE_OFFSET_NS)
+-endif
+-
+-ifneq ($(SF_VSYNC_EVENT_PHASE_OFFSET_NS),)
+-    LOCAL_CFLAGS += -DSF_VSYNC_EVENT_PHASE_OFFSET_NS=$(SF_VSYNC_EVENT_PHASE_OFFSET_NS)
+-endif
+-
+-ifeq ($(TARGET_BOARD_PLATFORM),omap4)
+-    LOCAL_CFLAGS += -DUSE_CONTEXT_PRIORITY=1
+-endif
+-
+-ifeq ($(TARGET_BOARD_PLATFORM),s5pc110)
+-    LOCAL_CFLAGS += -DUSE_CONTEXT_PRIORITY=1
+-endif
+-
+-ifeq ($(TARGET_USE_CONTEXT_PRIORITY),true)
+-    LOCAL_CFLAGS += -DUSE_CONTEXT_PRIORITY=1
+-endif
+-
+-ifeq ($(TARGET_HAS_WIDE_COLOR_DISPLAY),true)
+-    LOCAL_CFLAGS += -DHAS_WIDE_COLOR_DISPLAY
+-endif
+-
+-ifeq ($(TARGET_HAS_HDR_DISPLAY),true)
+-    LOCAL_CFLAGS += -DHAS_HDR_DISPLAY
+-endif
+-
+-ifneq ($(PRESENT_TIME_OFFSET_FROM_VSYNC_NS),)
+-    LOCAL_CFLAGS += -DPRESENT_TIME_OFFSET_FROM_VSYNC_NS=$(PRESENT_TIME_OFFSET_FROM_VSYNC_NS)
+-else
+-    LOCAL_CFLAGS += -DPRESENT_TIME_OFFSET_FROM_VSYNC_NS=0
+-endif
+-
+-ifeq ($(TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS),true)
+-    LOCAL_CFLAGS += -DFORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS
+-endif
+-
+-ifneq ($(MAX_VIRTUAL_DISPLAY_DIMENSION),)
+-    LOCAL_CFLAGS += -DMAX_VIRTUAL_DISPLAY_DIMENSION=$(MAX_VIRTUAL_DISPLAY_DIMENSION)
+-endif
+-
+-ifeq ($(TARGET_RUNNING_WITHOUT_SYNC_FRAMEWORK),true)
+-    LOCAL_CFLAGS += -DRUNNING_WITHOUT_SYNC_FRAMEWORK
+-endif
+-
+-ifneq ($(USE_VR_FLINGER),)
+-    LOCAL_CFLAGS += -DUSE_VR_FLINGER
+-endif
+-
+-ifneq ($(NUM_FRAMEBUFFER_SURFACE_BUFFERS),)
+-    LOCAL_CFLAGS += -DNUM_FRAMEBUFFER_SURFACE_BUFFERS=$(NUM_FRAMEBUFFER_SURFACE_BUFFERS)
+-endif
+-
+-ifneq ($(SF_START_GRAPHICS_ALLOCATOR_SERVICE),)
+-    LOCAL_CFLAGS += -DSTART_GRAPHICS_ALLOCATOR_SERVICE
+-endif
+-
+-ifneq ($(SF_PRIMARY_DISPLAY_ORIENTATION),)
+-    LOCAL_CFLAGS += -DPRIMARY_DISPLAY_ORIENTATION=$(SF_PRIMARY_DISPLAY_ORIENTATION)
+-endif
+diff --git hardware_interfaces_old/configstore/default/Android.mk hardware_interfaces_new/configstore/default/Android.mk
+new file mode 100644
+index 0000000..40f621b
+--- /dev/null
++++ hardware_interfaces_new/configstore/default/Android.mk
+@@ -0,0 +1,38 @@
++LOCAL_PATH := $(call my-dir)
++
++################################################################################
++include $(CLEAR_VARS)
++LOCAL_MODULE := android.hardware.configstore@1.1-service
++# seccomp is not required for coverage build.
++ifneq ($(NATIVE_COVERAGE),true)
++LOCAL_REQUIRED_MODULES_arm64 := configstore@1.1.policy
++endif
++LOCAL_PROPRIETARY_MODULE := true
++LOCAL_MODULE_CLASS := EXECUTABLES
++LOCAL_MODULE_RELATIVE_PATH := hw
++LOCAL_INIT_RC := android.hardware.configstore@1.1-service.rc
++LOCAL_SRC_FILES:= service.cpp
++
++include $(LOCAL_PATH)/surfaceflinger.mk
++
++LOCAL_SHARED_LIBRARIES := \
++    libhidlbase \
++    libhidltransport \
++    libbase \
++    libhwminijail \
++    liblog \
++    libutils \
++    android.hardware.configstore@1.0 \
++    android.hardware.configstore@1.1
++
++include $(BUILD_EXECUTABLE)
++
++# seccomp filter for configstore
++ifeq ($(TARGET_ARCH), $(filter $(TARGET_ARCH), arm64))
++include $(CLEAR_VARS)
++LOCAL_MODULE := configstore@1.1.policy
++LOCAL_MODULE_CLASS := ETC
++LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/etc/seccomp_policy
++LOCAL_SRC_FILES := seccomp_policy/configstore@1.1-$(TARGET_ARCH).policy
++include $(BUILD_PREBUILT)
++endif
+diff --git hardware_interfaces_old/configstore/default/SurfaceFlingerConfigs.cpp hardware_interfaces_new/configstore/default/SurfaceFlingerConfigs.cpp
+new file mode 100644
+index 0000000..da3081c
+--- /dev/null
++++ hardware_interfaces_new/configstore/default/SurfaceFlingerConfigs.cpp
+@@ -0,0 +1,200 @@
++/*
++ * Copyright (C) 2018 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.1 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.1
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "SurfaceFlingerConfigs.h"
++
++#include <android/hardware/configstore/1.1/types.h>
++#include <log/log.h>
++
++namespace android {
++namespace hardware {
++namespace configstore {
++namespace V1_1 {
++namespace implementation {
++
++// Methods from ::android::hardware::configstore::V1_0::ISurfaceFlingerConfigs
++// follow.
++Return<void> SurfaceFlingerConfigs::vsyncEventPhaseOffsetNs(vsyncEventPhaseOffsetNs_cb _hidl_cb) {
++#ifdef VSYNC_EVENT_PHASE_OFFSET_NS
++    _hidl_cb({true, VSYNC_EVENT_PHASE_OFFSET_NS});
++#else
++    _hidl_cb({false, 0});
++#endif
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::vsyncSfEventPhaseOffsetNs(vsyncEventPhaseOffsetNs_cb _hidl_cb) {
++#ifdef SF_VSYNC_EVENT_PHASE_OFFSET_NS
++    _hidl_cb({true, SF_VSYNC_EVENT_PHASE_OFFSET_NS});
++#else
++    _hidl_cb({false, 0});
++#endif
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::useContextPriority(useContextPriority_cb _hidl_cb) {
++#ifdef USE_CONTEXT_PRIORITY
++    _hidl_cb({true, USE_CONTEXT_PRIORITY});
++#else
++    _hidl_cb({false, false});
++#endif
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers(
++    maxFrameBufferAcquiredBuffers_cb _hidl_cb) {
++#ifdef NUM_FRAMEBUFFER_SURFACE_BUFFERS
++    _hidl_cb({true, NUM_FRAMEBUFFER_SURFACE_BUFFERS});
++#else
++    _hidl_cb({false, 0});
++#endif
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::hasWideColorDisplay(hasWideColorDisplay_cb _hidl_cb) {
++    bool value = false;
++#ifdef HAS_WIDE_COLOR_DISPLAY
++    value = true;
++#endif
++    _hidl_cb({true, value});
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::hasSyncFramework(hasSyncFramework_cb _hidl_cb) {
++    bool value = true;
++#ifdef RUNNING_WITHOUT_SYNC_FRAMEWORK
++    value = false;
++#endif
++    _hidl_cb({true, value});
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::hasHDRDisplay(hasHDRDisplay_cb _hidl_cb) {
++    bool value = false;
++#ifdef HAS_HDR_DISPLAY
++    value = true;
++#endif
++    _hidl_cb({true, value});
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs(
++    presentTimeOffsetFromVSyncNs_cb _hidl_cb) {
++#ifdef PRESENT_TIME_OFFSET_FROM_VSYNC_NS
++    _hidl_cb({true, PRESENT_TIME_OFFSET_FROM_VSYNC_NS});
++#else
++    _hidl_cb({false, 0});
++#endif
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::useHwcForRGBtoYUV(useHwcForRGBtoYUV_cb _hidl_cb) {
++    bool value = false;
++#ifdef FORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS
++    value = true;
++#endif
++    _hidl_cb({true, value});
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::maxVirtualDisplaySize(maxVirtualDisplaySize_cb _hidl_cb) {
++    uint64_t maxSize = 0;
++#ifdef MAX_VIRTUAL_DISPLAY_DIMENSION
++    maxSize = MAX_VIRTUAL_DISPLAY_DIMENSION;
++    _hidl_cb({true, maxSize});
++#else
++    _hidl_cb({false, maxSize});
++#endif
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::useVrFlinger(useVrFlinger_cb _hidl_cb) {
++    bool value = false;
++    bool specified = false;
++#ifdef USE_VR_FLINGER
++    value = true;
++    specified = true;
++#endif
++    _hidl_cb({specified, value});
++    return Void();
++}
++
++Return<void> SurfaceFlingerConfigs::startGraphicsAllocatorService(
++    startGraphicsAllocatorService_cb _hidl_cb) {
++    bool value = false;
++#ifdef START_GRAPHICS_ALLOCATOR_SERVICE
++    value = true;
++#endif
++    _hidl_cb({true, value});
++    return Void();
++}
++
++// Methods from ::android::hardware::configstore::V1_1::ISurfaceFlingerConfigs
++// follow.
++
++#ifdef PRIMARY_DISPLAY_ORIENTATION
++static_assert(PRIMARY_DISPLAY_ORIENTATION == 0 || PRIMARY_DISPLAY_ORIENTATION == 90 ||
++                  PRIMARY_DISPLAY_ORIENTATION == 180 || PRIMARY_DISPLAY_ORIENTATION == 270,
++              "Primary display orientation must be 0/90/180/270");
++#endif
++
++Return<void> SurfaceFlingerConfigs::primaryDisplayOrientation(
++    primaryDisplayOrientation_cb _hidl_cb) {
++    using ::android::hardware::configstore::V1_1::DisplayOrientation;
++
++    bool specified = false;
++    DisplayOrientation value = DisplayOrientation::ORIENTATION_0;
++
++    int orientation = 0;
++#ifdef PRIMARY_DISPLAY_ORIENTATION
++    specified = true;
++    orientation = PRIMARY_DISPLAY_ORIENTATION;
++#endif
++
++    switch (orientation) {
++        case 0: {
++            value = DisplayOrientation::ORIENTATION_0;
++            break;
++        }
++        case 90: {
++            value = DisplayOrientation::ORIENTATION_90;
++            break;
++        }
++        case 180: {
++            value = DisplayOrientation::ORIENTATION_180;
++            break;
++        }
++        case 270: {
++            value = DisplayOrientation::ORIENTATION_270;
++            break;
++        }
++        default: {
++            // statically checked above -> memory corruption
++            LOG_ALWAYS_FATAL("Invalid orientation %d", orientation);
++        }
++    }
++
++    _hidl_cb({specified, value});
++    return Void();
++}
++
++// Methods from ::android::hidl::base::V1_0::IBase follow.
++
++}  // namespace implementation
++}  // namespace V1_1
++}  // namespace configstore
++}  // namespace hardware
++}  // namespace android
+diff --git hardware_interfaces_old/configstore/default/SurfaceFlingerConfigs.h hardware_interfaces_new/configstore/default/SurfaceFlingerConfigs.h
+new file mode 100644
+index 0000000..3714e81
+--- /dev/null
++++ hardware_interfaces_new/configstore/default/SurfaceFlingerConfigs.h
+@@ -0,0 +1,48 @@
++#ifndef ANDROID_HARDWARE_CONFIGSTORE_V1_1_SURFACEFLINGERCONFIGS_H
++#define ANDROID_HARDWARE_CONFIGSTORE_V1_1_SURFACEFLINGERCONFIGS_H
++
++#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
++#include <hidl/MQDescriptor.h>
++#include <hidl/Status.h>
++
++namespace android {
++namespace hardware {
++namespace configstore {
++namespace V1_1 {
++namespace implementation {
++
++using ::android::hardware::configstore::V1_1::ISurfaceFlingerConfigs;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::sp;
++
++struct SurfaceFlingerConfigs : public ISurfaceFlingerConfigs {
++    // Methods from
++    // ::android::hardware::configstore::V1_0::ISurfaceFlingerConfigs follow.
++    Return<void> vsyncEventPhaseOffsetNs(vsyncEventPhaseOffsetNs_cb _hidl_cb) override;
++    Return<void> vsyncSfEventPhaseOffsetNs(vsyncSfEventPhaseOffsetNs_cb _hidl_cb) override;
++    Return<void> useContextPriority(useContextPriority_cb _hidl_cb) override;
++    Return<void> hasWideColorDisplay(hasWideColorDisplay_cb _hidl_cb) override;
++    Return<void> hasHDRDisplay(hasHDRDisplay_cb _hidl_cb) override;
++    Return<void> presentTimeOffsetFromVSyncNs(presentTimeOffsetFromVSyncNs_cb _hidl_cb) override;
++    Return<void> useHwcForRGBtoYUV(useHwcForRGBtoYUV_cb _hidl_cb) override;
++    Return<void> maxVirtualDisplaySize(maxVirtualDisplaySize_cb _hidl_cb) override;
++    Return<void> hasSyncFramework(hasSyncFramework_cb _hidl_cb) override;
++    Return<void> useVrFlinger(useVrFlinger_cb _hidl_cb) override;
++    Return<void> maxFrameBufferAcquiredBuffers(maxFrameBufferAcquiredBuffers_cb _hidl_cb) override;
++    Return<void> startGraphicsAllocatorService(startGraphicsAllocatorService_cb _hidl_cb) override;
++
++    // Methods from
++    // ::android::hardware::configstore::V1_1::ISurfaceFlingerConfigs follow.
++    Return<void> primaryDisplayOrientation(primaryDisplayOrientation_cb _hidl_cb) override;
++
++    // Methods from ::android::hidl::base::V1_0::IBase follow.
++};
++
++}  // namespace implementation
++}  // namespace V1_1
++}  // namespace configstore
++}  // namespace hardware
++}  // namespace android
++
++#endif  // ANDROID_HARDWARE_CONFIGSTORE_V1_1_SURFACEFLINGERCONFIGS_H
+diff --git hardware_interfaces_old/configstore/default/android.hardware.configstore@1.1-service.rc hardware_interfaces_new/configstore/default/android.hardware.configstore@1.1-service.rc
+new file mode 100644
+index 0000000..105678a
+--- /dev/null
++++ hardware_interfaces_new/configstore/default/android.hardware.configstore@1.1-service.rc
+@@ -0,0 +1,4 @@
++service vendor.configstore-hal /vendor/bin/hw/android.hardware.configstore@1.1-service
++    class hal animation
++    user system
++    group system
+diff --git hardware_interfaces_old/configstore/default/seccomp_policy/configstore@1.1-arm64.policy hardware_interfaces_new/configstore/default/seccomp_policy/configstore@1.1-arm64.policy
+new file mode 100644
+index 0000000..d523a1a
+--- /dev/null
++++ hardware_interfaces_new/configstore/default/seccomp_policy/configstore@1.1-arm64.policy
+@@ -0,0 +1,55 @@
++# Copyright (C) 2017 The Android Open Source Project
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++futex: 1
++# ioctl: arg1 == BINDER_WRITE_READ
++ioctl: arg1 == 0xc0306201
++# prctl: arg0 == PR_SET_NAME || arg0 == PR_SET_VMA || arg0 == PR_SET_TIMERSLACK
++# || arg0 == PR_GET_NO_NEW_PRIVS # used by crash_dump
++# prctl: arg0 == 15 || arg0 == 0x53564d41 || arg0 == 29 || arg0 == 39
++# TODO(b/68162846) reduce scope of prctl() based on arguments
++prctl: 1
++openat: 1
++mmap: 1
++mprotect: 1
++close: 1
++getuid: 1
++read: 1
++faccessat: 1
++write: 1
++fstat: 1
++clone: 1
++sched_setscheduler: 1
++munmap: 1
++lseek: 1
++sigaltstack: 1
++writev: 1
++setpriority: 1
++restart_syscall: 1
++exit: 1
++exit_group: 1
++rt_sigreturn: 1
++getrlimit: 1
++madvise: 1
++getdents64: 1
++clock_gettime: 1
++
++# used during process crash by crash_dump to dump process info
++rt_sigprocmask: 1
++rt_sigaction: 1
++# socket: arg0 == AF_LOCAL
++socket: arg0 == 1
++connect: 1
++recvmsg: 1
++rt_tgsigqueueinfo: 1
+diff --git hardware_interfaces_old/configstore/default/service.cpp hardware_interfaces_new/configstore/default/service.cpp
+new file mode 100644
+index 0000000..3b4e774
+--- /dev/null
++++ hardware_interfaces_new/configstore/default/service.cpp
+@@ -0,0 +1,46 @@
++/*
++ * Copyright (C) 2018 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.1 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.1
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "android.hardware.configstore@1.1-service"
++
++#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
++#include <hidl/HidlTransportSupport.h>
++#include <hwminijail/HardwareMinijail.h>
++
++#include "SurfaceFlingerConfigs.h"
++
++using android::hardware::configureRpcThreadpool;
++using android::hardware::joinRpcThreadpool;
++using android::hardware::configstore::V1_1::ISurfaceFlingerConfigs;
++using android::hardware::configstore::V1_1::implementation::SurfaceFlingerConfigs;
++using android::hardware::SetupMinijail;
++using android::sp;
++using android::status_t;
++using android::OK;
++
++int main() {
++    configureRpcThreadpool(10, true);
++
++    SetupMinijail("/vendor/etc/seccomp_policy/configstore@1.1.policy");
++
++    sp<ISurfaceFlingerConfigs> surfaceFlingerConfigs = new SurfaceFlingerConfigs;
++    status_t status = surfaceFlingerConfigs->registerAsService();
++    LOG_ALWAYS_FATAL_IF(status != OK, "Could not register ISurfaceFlingerConfigs");
++
++    // other interface registration comes here
++    joinRpcThreadpool();
++    return 0;
++}
+diff --git hardware_interfaces_old/configstore/default/surfaceflinger.mk hardware_interfaces_new/configstore/default/surfaceflinger.mk
+new file mode 100644
+index 0000000..51f06e1
+--- /dev/null
++++ hardware_interfaces_new/configstore/default/surfaceflinger.mk
+@@ -0,0 +1,64 @@
++
++LOCAL_SRC_FILES += SurfaceFlingerConfigs.cpp
++
++ifneq ($(VSYNC_EVENT_PHASE_OFFSET_NS),)
++    LOCAL_CFLAGS += -DVSYNC_EVENT_PHASE_OFFSET_NS=$(VSYNC_EVENT_PHASE_OFFSET_NS)
++endif
++
++ifneq ($(SF_VSYNC_EVENT_PHASE_OFFSET_NS),)
++    LOCAL_CFLAGS += -DSF_VSYNC_EVENT_PHASE_OFFSET_NS=$(SF_VSYNC_EVENT_PHASE_OFFSET_NS)
++endif
++
++ifeq ($(TARGET_BOARD_PLATFORM),omap4)
++    LOCAL_CFLAGS += -DUSE_CONTEXT_PRIORITY=1
++endif
++
++ifeq ($(TARGET_BOARD_PLATFORM),s5pc110)
++    LOCAL_CFLAGS += -DUSE_CONTEXT_PRIORITY=1
++endif
++
++ifeq ($(TARGET_USE_CONTEXT_PRIORITY),true)
++    LOCAL_CFLAGS += -DUSE_CONTEXT_PRIORITY=1
++endif
++
++ifeq ($(TARGET_HAS_WIDE_COLOR_DISPLAY),true)
++    LOCAL_CFLAGS += -DHAS_WIDE_COLOR_DISPLAY
++endif
++
++ifeq ($(TARGET_HAS_HDR_DISPLAY),true)
++    LOCAL_CFLAGS += -DHAS_HDR_DISPLAY
++endif
++
++ifneq ($(PRESENT_TIME_OFFSET_FROM_VSYNC_NS),)
++    LOCAL_CFLAGS += -DPRESENT_TIME_OFFSET_FROM_VSYNC_NS=$(PRESENT_TIME_OFFSET_FROM_VSYNC_NS)
++else
++    LOCAL_CFLAGS += -DPRESENT_TIME_OFFSET_FROM_VSYNC_NS=0
++endif
++
++ifeq ($(TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS),true)
++    LOCAL_CFLAGS += -DFORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS
++endif
++
++ifneq ($(MAX_VIRTUAL_DISPLAY_DIMENSION),)
++    LOCAL_CFLAGS += -DMAX_VIRTUAL_DISPLAY_DIMENSION=$(MAX_VIRTUAL_DISPLAY_DIMENSION)
++endif
++
++ifeq ($(TARGET_RUNNING_WITHOUT_SYNC_FRAMEWORK),true)
++    LOCAL_CFLAGS += -DRUNNING_WITHOUT_SYNC_FRAMEWORK
++endif
++
++ifneq ($(USE_VR_FLINGER),)
++    LOCAL_CFLAGS += -DUSE_VR_FLINGER
++endif
++
++ifneq ($(NUM_FRAMEBUFFER_SURFACE_BUFFERS),)
++    LOCAL_CFLAGS += -DNUM_FRAMEBUFFER_SURFACE_BUFFERS=$(NUM_FRAMEBUFFER_SURFACE_BUFFERS)
++endif
++
++ifneq ($(SF_START_GRAPHICS_ALLOCATOR_SERVICE),)
++    LOCAL_CFLAGS += -DSTART_GRAPHICS_ALLOCATOR_SERVICE
++endif
++
++ifneq ($(SF_PRIMARY_DISPLAY_ORIENTATION),)
++    LOCAL_CFLAGS += -DPRIMARY_DISPLAY_ORIENTATION=$(SF_PRIMARY_DISPLAY_ORIENTATION)
++endif
+diff --git hardware_interfaces_old/graphics/allocator/2.0/Android.bp hardware_interfaces_new/graphics/allocator/2.0/Android.bp
+index 50b474e..21061f5 100644
+--- hardware_interfaces_old/graphics/allocator/2.0/Android.bp
++++ hardware_interfaces_new/graphics/allocator/2.0/Android.bp
+@@ -17,3 +17,4 @@ hidl_interface {
+     gen_java: false,
+ }
+ 
++subdirs = ["default"]
+diff --git hardware_interfaces_old/graphics/composer/2.1/Android.bp hardware_interfaces_new/graphics/composer/2.1/Android.bp
+index 8fbc8c2..22d5bda 100644
+--- hardware_interfaces_old/graphics/composer/2.1/Android.bp
++++ hardware_interfaces_new/graphics/composer/2.1/Android.bp
+@@ -22,3 +22,4 @@ hidl_interface {
+     gen_java: false,
+ }
+ 
++subdirs = ["default"]
+diff --git hardware_interfaces_old/graphics/mapper/2.1/Android.bp hardware_interfaces_new/graphics/mapper/2.1/Android.bp
+index 8527d3d..f998116 100644
+--- hardware_interfaces_old/graphics/mapper/2.1/Android.bp
++++ hardware_interfaces_new/graphics/mapper/2.1/Android.bp
+@@ -19,3 +19,4 @@ hidl_interface {
+     gen_java: false,
+ }
+ 
++subdirs = ["default"]
+
+diff -Nurp a/current.txt b/current.txt
+--- a/current.txt	2021-04-21 09:41:01.704377951 +0800
++++ b/current.txt	2021-04-21 20:16:51.006271556 +0800
+@@ -95,7 +95,7 @@ b3aac6c3817f039964fcd62268274b3039e17bd7
+ b19d00eb8a8b3b0034a0321f22e8f32162bf4c2aebbce6da22c025f56e459ea2 android.hardware.graphics.composer@2.1::IComposerCallback
+ 61ee43ffe6fb6dbe8b22dc17c51ff3d5ba703fc6029cba211f901f3d79c8a72d android.hardware.graphics.composer@2.1::IComposerClient
+ 1c98c2f5154345312ec054871792a2982ec5f3e2bc2abfb61a10c0b517978e20 android.hardware.graphics.composer@2.1::types
+-a695898589e1ef15b2b2510f11edd6aafac9918d9cf8d74b4b6143b309dee542 android.hardware.graphics.mapper@2.0::IMapper
++5283ae642ab6078b3345d34d92c5224b7e72407a0cc635be671e38bdd4620f0e android.hardware.graphics.mapper@2.0::IMapper
+ 28507d385a3dd224bf3c32f1bfd9f96092c4701b9c1cc66caa578fc3efc97877 android.hardware.graphics.mapper@2.0::types
+ 91e2ba3805c923f01fc1231ec9ff838942aee3346f2d7614ecc0caeadbe57ed4 android.hardware.health@1.0::IHealth
+ 1275aa2e8732909101b26aec49ed2285489e89d97b8610a8908b7868e35a3cc5 android.hardware.health@1.0::types
+diff -Nurp a/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.cpp b/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.cpp
+--- a/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.cpp	2021-04-21 09:41:02.076377965 +0800
++++ b/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.cpp	2021-04-21 20:16:51.010271556 +0800
+@@ -152,6 +152,9 @@ gralloc1_function_pointer_t Gralloc1On0A
+         case GRALLOC1_FUNCTION_LOCK:
+             return asFP<GRALLOC1_PFN_LOCK>(
+                     lockHook<void*, &Gralloc1On0Adapter::lock>);
++        case GRALLOC1_FUNCTION_LOCK_ENCTURBO:
++            return asFP<GRALLOC1_PFN_LOCK_ENCTURBO>(
++                    lockHook<void*, &Gralloc1On0Adapter::lockEncTurbo>);
+         case GRALLOC1_FUNCTION_LOCK_FLEX:
+             return asFP<GRALLOC1_PFN_LOCK_FLEX>(
+                     lockHook<struct android_flex_layout,
+@@ -466,6 +469,38 @@ gralloc1_error_t Gralloc1On0Adapter::loc
+         }
+     }
+     return GRALLOC1_ERROR_NONE;
++}
++
++gralloc1_error_t Gralloc1On0Adapter::lockEncTurbo(
++        const std::shared_ptr<Buffer>& buffer,
++        gralloc1_producer_usage_t producerUsage,
++        gralloc1_consumer_usage_t consumerUsage,
++        const gralloc1_rect_t& accessRegion, void** outData,
++        const sp<Fence>& acquireFence)
++{
++    if (mMinorVersion >= 3) {
++        int result = mModule->lockAsync(mModule, buffer->getHandle(),
++                static_cast<int32_t>(producerUsage | consumerUsage),
++                accessRegion.left, accessRegion.top, accessRegion.width,
++                accessRegion.height, outData, acquireFence->dup());
++        if (result != 0) {
++            return GRALLOC1_ERROR_UNSUPPORTED;
++        }
++    } else {
++        acquireFence->waitForever("Gralloc1On0Adapter::lock");
++        using lock_encturbo_ptr =
++            int(*)(gralloc_module_t const *, buffer_handle_t , int , int , int , int , int , void **);
++        lock_encturbo_ptr lock_encturbo = (lock_encturbo_ptr)mModule->reserved_proc[0];
++        int result = lock_encturbo(mModule, buffer->getHandle(),
++                static_cast<int32_t>(producerUsage | consumerUsage),
++                accessRegion.left, accessRegion.top, accessRegion.width,
++                accessRegion.height, outData);
++        ALOGV("gralloc0 lock returned %d", result);
++        if (result != 0) {
++            return GRALLOC1_ERROR_UNSUPPORTED;
++        }
++    }
++    return GRALLOC1_ERROR_NONE;
+ }
+ 
+ gralloc1_error_t Gralloc1On0Adapter::lockFlex(
+diff -Nurp a/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.h b/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.h
+--- a/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.h	2021-04-21 09:41:02.076377965 +0800
++++ b/graphics/allocator/2.0/utils/gralloc1-adapter/Gralloc1On0Adapter.h	2021-04-21 20:16:51.010271556 +0800
+@@ -352,6 +352,14 @@ private:
+             gralloc1_consumer_usage_t consumerUsage,
+             const gralloc1_rect_t& accessRegion, void** outData,
+             int acquireFence);
++
++    // For EncTurbo
++    gralloc1_error_t lockEncTurbo(const std::shared_ptr<Buffer>& buffer,
++            gralloc1_producer_usage_t producerUsage,
++            gralloc1_consumer_usage_t consumerUsage,
++            const gralloc1_rect_t& accessRegion, void** outData,
++            const sp<Fence>& acquireFence);
++
+     gralloc1_error_t lockFlex(const std::shared_ptr<Buffer>& buffer,
+             gralloc1_producer_usage_t producerUsage,
+             gralloc1_consumer_usage_t consumerUsage,
+diff -Nurp a/graphics/mapper/2.0/IMapper.hal b/graphics/mapper/2.0/IMapper.hal
+--- a/graphics/mapper/2.0/IMapper.hal	2021-04-21 09:41:02.048377964 +0800
++++ b/graphics/mapper/2.0/IMapper.hal	2021-04-21 20:16:51.010271556 +0800
+@@ -177,6 +177,53 @@ interface IMapper {
+         generates (Error error,
+                    pointer data);
+ 
++
++    /**
++     * Locks the given buffer for the specified CPU usage.
++     *
++     * Locking the same buffer simultaneously from multiple threads is
++     * permitted, but if any of the threads attempt to lock the buffer for
++     * writing, the behavior is undefined, except that it must not cause
++     * process termination or block the client indefinitely. Leaving the
++     * buffer content in an indeterminate state or returning an error are both
++     * acceptable.
++     *
++     * The client must not modify the content of the buffer outside of
++     * accessRegion, and the device need not guarantee that content outside of
++     * accessRegion is valid for reading. The result of reading or writing
++     * outside of accessRegion is undefined, except that it must not cause
++     * process termination.
++     *
++     * data will be filled with a pointer to the locked buffer memory. This
++     * address will represent the top-left corner of the entire buffer, even
++     * if accessRegion does not begin at the top-left corner.
++     *
++     * @param buffer is the buffer to lock.
++     * @param cpuUsage specifies one or more CPU usage flags to request.
++     * @param accessRegion is the portion of the buffer that the client
++     *        intends to access.
++     * @param acquireFence when non-empty, is a handle containing a file
++     *        descriptor referring to a sync fence object, which will be
++     *        signaled when it is safe for the mapper to lock the buffer. If
++     *        it is already safe to lock, acquireFence is empty.
++     * @return error is NONE upon success. Otherwise,
++     *                  BAD_BUFFER when the buffer is invalid or is
++     *                             incompatible with this function.
++     *                  BAD_VALUE when cpuUsage is 0, contains non-CPU usage
++     *                            flags, or is incompatible with the buffer.
++     *                  NO_RESOURCES when the buffer cannot be locked at this
++     *                               time, but locking may succeed at a future
++     *                               time.
++     * @return data is a CPU-accessible pointer to the buffer data.
++     */
++    @callflow(next="unlock")
++    lockEncTurbo(pointer buffer,
++         bitfield<BufferUsage> cpuUsage,
++         Rect accessRegion,
++         handle acquireFence)
++        generates (Error error,
++                   pointer data);
++
+     /**
+      * This is largely the same as lock(), except that instead of returning a
+      * pointer directly to the buffer data, it returns an YCbCrLayout struct
+diff -Nurp a/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/Mapper.h b/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/Mapper.h
+--- a/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/Mapper.h	2021-04-21 09:41:02.060377964 +0800
++++ b/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/Mapper.h	2021-04-21 20:16:51.010271556 +0800
+@@ -109,6 +109,27 @@ class MapperImpl : public Interface {
+         return Void();
+     }
+ 
++    Return<void> lockEncTurbo(void* buffer, uint64_t cpuUsage, const V2_0::IMapper::Rect& accessRegion,
++                      const hidl_handle& acquireFence, IMapper::lock_cb hidl_cb) override {
++        const native_handle_t* bufferHandle = getImportedBuffer(buffer);
++        if (!bufferHandle) {
++            hidl_cb(Error::BAD_BUFFER, nullptr);
++            return Void();
++        }
++
++        base::unique_fd fenceFd;
++        Error error = getFenceFd(acquireFence, &fenceFd);
++        if (error != Error::NONE) {
++            hidl_cb(error, nullptr);
++            return Void();
++        }
++
++        void* data = nullptr;
++        error = mHal->lockEncTurbo(bufferHandle, cpuUsage, accessRegion, std::move(fenceFd), &data);
++        hidl_cb(error, data);
++        return Void();
++    }
++
+     Return<void> lockYCbCr(void* buffer, uint64_t cpuUsage, const V2_0::IMapper::Rect& accessRegion,
+                            const hidl_handle& acquireFence,
+                            IMapper::lockYCbCr_cb hidl_cb) override {
+diff -Nurp a/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/MapperHal.h b/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/MapperHal.h
+--- a/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/MapperHal.h	2021-04-21 09:41:02.056377964 +0800
++++ b/graphics/mapper/2.0/utils/hal/include/mapper-hal/2.0/MapperHal.h	2021-04-21 20:16:51.010271556 +0800
+@@ -46,6 +46,10 @@ class MapperHal {
+                        const IMapper::Rect& accessRegion, base::unique_fd fenceFd,
+                        void** outData) = 0;
+ 
++    virtual Error lockEncTurbo(const native_handle_t* bufferHandle, uint64_t cpuUsage,
++                       const IMapper::Rect& accessRegion, base::unique_fd fenceFd,
++                       void** outData) = 0;
++
+     // lock a YCbCr buffer
+     virtual Error lockYCbCr(const native_handle_t* bufferHandle, uint64_t cpuUsage,
+                             const IMapper::Rect& accessRegion, base::unique_fd fenceFd,
+diff -Nurp a/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc0Hal.h b/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc0Hal.h
+--- a/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc0Hal.h	2021-04-21 09:41:02.064377964 +0800
++++ b/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc0Hal.h	2021-04-21 20:16:51.010271556 +0800
+@@ -126,6 +126,33 @@ class Gralloc0HalImpl : public Hal {
+         return Error::NONE;
+     }
+ 
++    Error lockEncTurbo(const native_handle_t* bufferHandle, uint64_t cpuUsage,
++               const IMapper::Rect& accessRegion, base::unique_fd fenceFd,
++               void** outData) override {
++        int result;
++        void* data = nullptr;
++        if (mMinor >= 3 && mModule->lockAsync) {
++            result = mModule->lockAsync(mModule, bufferHandle, cpuUsage, accessRegion.left,
++                                        accessRegion.top, accessRegion.width, accessRegion.height,
++                                        &data, fenceFd.release());
++        } else {
++            waitFenceFd(fenceFd, "Gralloc0Hal::lock");
++            using lock_encturbo_ptr =
++                int(*)(gralloc_module_t const *, buffer_handle_t, int, int, int, int, int, void **);
++            lock_encturbo_ptr lock_encturbo = (lock_encturbo_ptr)mModule->reserved_proc[0];
++            result =
++                lock_encturbo(mModule, bufferHandle, cpuUsage, accessRegion.left, accessRegion.top,
++                              accessRegion.width, accessRegion.height, &data);
++        }
++
++        if (result) {
++            return Error::BAD_VALUE;
++        }
++
++        *outData = data;
++        return Error::NONE;
++    }
++
+     Error lockYCbCr(const native_handle_t* bufferHandle, uint64_t cpuUsage,
+                     const IMapper::Rect& accessRegion, base::unique_fd fenceFd,
+                     YCbCrLayout* outLayout) override {
+diff -Nurp a/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc1Hal.h b/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc1Hal.h
+--- a/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc1Hal.h	2021-04-21 09:41:02.064377964 +0800
++++ b/graphics/mapper/2.0/utils/passthrough/include/mapper-passthrough/2.0/Gralloc1Hal.h	2021-04-21 20:16:51.010271556 +0800
+@@ -137,6 +137,22 @@ class Gralloc1HalImpl : public Hal {
+         return toError(error);
+     }
+ 
++    Error lockEncTurbo(const native_handle_t* bufferHandle, uint64_t cpuUsage,
++               const IMapper::Rect& accessRegion, base::unique_fd fenceFd,
++               void** outData) override {
++        const uint64_t consumerUsage =
++            cpuUsage & ~static_cast<uint64_t>(BufferUsage::CPU_WRITE_MASK);
++        const auto accessRect = asGralloc1Rect(accessRegion);
++        void* data = nullptr;
++        int32_t error = mDispatch.lockTurbo(mDevice, bufferHandle, cpuUsage, consumerUsage, &accessRect,
++                                       &data, fenceFd.release());
++        if (error == GRALLOC1_ERROR_NONE) {
++            *outData = data;
++        }
++
++        return toError(error);
++    }
++
+     Error lockYCbCr(const native_handle_t* bufferHandle, uint64_t cpuUsage,
+                     const IMapper::Rect& accessRegion, base::unique_fd fenceFd,
+                     YCbCrLayout* outLayout) override {
+@@ -211,6 +227,7 @@ class Gralloc1HalImpl : public Hal {
+             !initDispatch(GRALLOC1_FUNCTION_RELEASE, &mDispatch.release) ||
+             !initDispatch(GRALLOC1_FUNCTION_GET_NUM_FLEX_PLANES, &mDispatch.getNumFlexPlanes) ||
+             !initDispatch(GRALLOC1_FUNCTION_LOCK, &mDispatch.lock) ||
++            !initDispatch(GRALLOC1_FUNCTION_LOCK_ENCTURBO, &mDispatch.lockTurbo) ||
+             !initDispatch(GRALLOC1_FUNCTION_LOCK_FLEX, &mDispatch.lockFlex) ||
+             !initDispatch(GRALLOC1_FUNCTION_UNLOCK, &mDispatch.unlock)) {
+             return false;
+@@ -323,6 +340,7 @@ class Gralloc1HalImpl : public Hal {
+         GRALLOC1_PFN_LOCK lock;
+         GRALLOC1_PFN_LOCK_FLEX lockFlex;
+         GRALLOC1_PFN_UNLOCK unlock;
++        GRALLOC1_PFN_LOCK_ENCTURBO lockTurbo;
+     } mDispatch = {};
+ };

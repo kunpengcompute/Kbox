@@ -1,0 +1,40 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff --git a/keystore/keystore_main.cpp b/keystore/keystore_main.cpp
+index 82d4e69..093e624 100644
+--- a/keystore/keystore_main.cpp
++++ b/keystore/keystore_main.cpp
+@@ -141,6 +141,7 @@ int main(int argc, char* argv[]) {
+ 
+     auto kmDevices = initializeKeymasters();
+ 
++#if 0
+     CHECK(kmDevices[SecurityLevel::SOFTWARE]) << "Missing software Keymaster device";
+     CHECK(kmDevices[SecurityLevel::TRUSTED_ENVIRONMENT])
+         << "Error no viable keymaster device found";
+@@ -154,6 +155,8 @@ int main(int argc, char* argv[]) {
+     // device.
+     SecurityLevel minimalAllowedSecurityLevelForNewKeys =
+         halVersion.majorVersion >= 2 ? SecurityLevel::TRUSTED_ENVIRONMENT : SecurityLevel::SOFTWARE;
++#endif
++    SecurityLevel minimalAllowedSecurityLevelForNewKeys = SecurityLevel::SOFTWARE;
+ 
+     keystore::KeyStore keyStore(&entropy, kmDevices, minimalAllowedSecurityLevelForNewKeys);
+     keyStore.initialize();
+diff --git a/keystore/keystore_utils.cpp b/keystore/keystore_utils.cpp
+index e5ae29a..f01755a 100644
+--- a/keystore/keystore_utils.cpp
++++ b/keystore/keystore_utils.cpp
+@@ -119,9 +119,9 @@ SecurityLevel flagsToSecurityLevel(int32_t flags) {
+     case (KEYSTORE_FLAG_FALLBACK | KEYSTORE_FLAG_STRONGBOX):
+         return SecurityLevel::SOFTWARE;
+     case KEYSTORE_FLAG_STRONGBOX:
+-        return SecurityLevel::STRONGBOX;
++        return SecurityLevel::SOFTWARE;
+     default:
+-        return SecurityLevel::TRUSTED_ENVIRONMENT;
++        return SecurityLevel::SOFTWARE;
+     }
+ }
+ 

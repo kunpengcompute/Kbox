@@ -1,0 +1,24 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+
+
+diff -Nur a/mkshrc b/mkshrc
+--- a/mkshrc    2020-12-05 09:57:56.305006285 +0800
++++ b/mkshrc    2020-12-05 09:59:57.849001993 +0800
+@@ -6,6 +6,7 @@
+ #
+ # Support: https://launchpad.net/mksh
+
++HOSTNAME=$DOCKER_NAME
+ if (( USER_ID )); then PS1='$'; else PS1='#'; fi
+ PS4='[$EPOCHREALTIME] '; PS1='${|
+        local e=$?

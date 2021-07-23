@@ -1,0 +1,461 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+
+
+diff -Nur frameworks_base_old/core/java/android/util/ExtraInfoLog.java frameworks_base_new/core/java/android/util/ExtraInfoLog.java
+--- frameworks_base_old/core/java/android/util/ExtraInfoLog.java	1970-01-01 08:00:00.000000000 +0800
++++ frameworks_base_new/core/java/android/util/ExtraInfoLog.java	2020-12-16 11:37:11.699237175 +0800
+@@ -0,0 +1,170 @@
++/*
++ * Copyright (C) 2006 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package android.util;
++
++/**
++ * A Log class with extra information, like line number, method, class name,
++ * file name etc.
++ *
++ * @hide
++ */
++public final class ExtraInfoLog {
++
++    private ExtraInfoLog() {
++    }
++
++    /**
++     * Get line number, method, class name etc
++     *
++     * @return an string array
++     */
++    private static String[] getAutoJumpLogInfos() {
++        String[] infos = new String[] { "", "", "", "" };
++        StackTraceElement[] elements = Thread.currentThread().getStackTrace();
++        if (elements.length < 5) {
++            Log.e("ExtraInfoLog", "Stack is too shallow!");
++            return infos;
++        } else {
++            // stacktrace elements:
++            // 0 -- dalvik.system.VMStack.getThreadStackTrace(Native Method)
++            // 1 -- java.lang.Thread.getStackTrace(Thread.java)
++            // 2 -- android.util.ExtraInfoLog.getAutoJumpLogInfos(ExtraInfoLog.java)
++            // 3 -- android.util.ExtraInfoLog.X(ExtraInfoLog.java)
++            // 4 -- exactly where called ExtraInfoLog.X, that's what we want.
++            StackTraceElement target = elements[4];
++            infos[0] = target.getClassName(); // class qualified name
++            infos[1] = target.getMethodName(); // method name
++            infos[2] = target.getFileName(); // file name, like ExtraInfoLog.java
++            infos[3] = Integer.toString(target.getLineNumber()); // line number
++            return infos;
++        }
++    }
++
++    /**
++     * build final log message
++     *
++     * @param msg   original log message
++     * @param infos extra infomation, must be an array with length 4, and without
++     *              null element.
++     * @return final log message, eg: this is a log :
++     *         com.android.server.wm.SurfaceAnimator.startAnimation(SurfaceAnimator.java:129)
++     */
++    private static String buildMessage(String msg, String[] infos) {
++        StringBuilder builder = new StringBuilder();
++        builder.append(msg).append(" : ").append(infos[0]).append(".").append(infos[1]);
++        builder.append("(").append(infos[2]).append(":").append(infos[3]).append(")");
++        return builder.toString();
++    }
++
++    public static int v(String tag, String msg) {
++        String[] infos = getAutoJumpLogInfos();
++        return Log.v(tag, buildMessage(msg, infos));
++    }
++
++    public static int v(String tag, String msg, Throwable tr) {
++        return Log.v(tag, msg, tr);
++    }
++
++    public static int d(String tag, String msg) {
++        String[] infos = getAutoJumpLogInfos();
++        return Log.d(tag, buildMessage(msg, infos));
++    }
++
++    public static int d(String tag, String msg, Throwable tr) {
++        return Log.d(tag, msg, tr);
++    }
++
++    public static int i(String tag, String msg) {
++        String[] infos = getAutoJumpLogInfos();
++        return Log.i(tag, buildMessage(msg, infos));
++    }
++
++    public static int i(String tag, String msg, Throwable tr) {
++        return Log.i(tag, msg, tr);
++    }
++
++    public static int w(String tag, String msg) {
++        String[] infos = getAutoJumpLogInfos();
++        return Log.w(tag, buildMessage(msg, infos));
++    }
++
++    public static int w(String tag, String msg, Throwable tr) {
++        return Log.w(tag, msg, tr);
++    }
++
++    public static int w(String tag, Throwable tr) {
++        return Log.w(tag, tr);
++    }
++
++    public static int e(String tag, String msg) {
++        String[] infos = getAutoJumpLogInfos();
++        return Log.e(tag, buildMessage(msg, infos));
++    }
++
++    public static int e(String tag, String msg, Throwable tr) {
++        return Log.e(tag, msg, tr);
++    }
++
++    /**
++     * Like {@link Log#wtf(String, String)}, but will never cause the caller to
++     * crash, and will always be handled asynchronously. Primarily for use by coding
++     * running within the system process.
++     */
++    public static int wtf(String tag, String msg) {
++        String[] infos = getAutoJumpLogInfos();
++        return Log.wtf(Log.LOG_ID_SYSTEM, tag, buildMessage(msg, infos), null, false, true);
++    }
++
++    /**
++     * Like {@link #wtf(String, String)}, but does not output anything to the log.
++     */
++    public static void wtfQuiet(String tag, String msg) {
++        Log.wtfQuiet(Log.LOG_ID_SYSTEM, tag, msg, true);
++    }
++
++    /**
++     * Like {@link Log#wtfStack(String, String)}, but will never cause the caller to
++     * crash, and will always be handled asynchronously. Primarily for use by coding
++     * running within the system process.
++     */
++    public static int wtfStack(String tag, String msg) {
++        return Log.wtf(Log.LOG_ID_SYSTEM, tag, msg, null, true, true);
++    }
++
++    /**
++     * Like {@link Log#wtf(String, Throwable)}, but will never cause the caller to
++     * crash, and will always be handled asynchronously. Primarily for use by coding
++     * running within the system process.
++     */
++    public static int wtf(String tag, Throwable tr) {
++        return Log.wtf(Log.LOG_ID_SYSTEM, tag, tr.getMessage(), tr, false, true);
++    }
++
++    /**
++     * Like {@link Log#wtf(String, String, Throwable)}, but will never cause the
++     * caller to crash, and will always be handled asynchronously. Primarily for use
++     * by coding running within the system process.
++     */
++    public static int wtf(String tag, String msg, Throwable tr) {
++        return Log.wtf(Log.LOG_ID_SYSTEM, tag, msg, tr, false, true);
++    }
++
++    public static int println(int priority, String tag, String msg) {
++        return Log.println_native(Log.LOG_ID_SYSTEM, priority, tag, msg);
++    }
++
++}
+
+diff -Nurp a/services/core/java/com/android/server/Watchdog.java b/services/core/java/com/android/server/Watchdog.java
+--- a/services/core/java/com/android/server/Watchdog.java	2020-12-18 17:13:15.938711519 +0800
++++ b/services/core/java/com/android/server/Watchdog.java	2020-12-18 17:15:03.014711519 +0800
+@@ -81,7 +81,7 @@ public class Watchdog extends Thread {
+         "/system/bin/drmserver",
+         "/system/bin/mediadrmserver",
+         "/system/bin/mediaserver",
+-        "/system/bin/sdcard",
++        //"/system/bin/sdcard",dump will make sdcard crash
+         "/system/bin/surfaceflinger",
+         "media.extractor", // system/bin/mediaextractor
+         "media.metrics", // system/bin/mediametrics
+
+diff -Nurp view_old/core/java/android/view/View.java view_new/core/java/android/view/View.java
+--- view_old/core/java/android/view/View.java	2021-02-19 17:33:14.603888291 +0800
++++ view_new/core/java/android/view/View.java	2021-02-19 17:31:50.595888291 +0800
+@@ -43,6 +43,8 @@ import android.content.res.ColorStateLis
+ import android.content.res.Configuration;
+ import android.content.res.Resources;
+ import android.content.res.TypedArray;
++import android.content.IntentFilter;
++import android.content.BroadcastReceiver;
+ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
+@@ -75,6 +77,7 @@ import android.os.RemoteException;
+ import android.os.SystemClock;
+ import android.os.SystemProperties;
+ import android.os.Trace;
++import android.os.Looper;
+ import android.text.InputType;
+ import android.text.TextUtils;
+ import android.util.AttributeSet;
+@@ -4781,7 +4784,10 @@ public class View implements Drawable.Ca
+ 
+     @Nullable
+     private RoundScrollbarRenderer mRoundScrollbarRenderer;
+-
++    private IntentFilter intentFilter;
++    private VmiSnapshotRestoreReceiver snapshotRestoreReceiver;
++    private volatile boolean mIsRegisterReceiver = false;
++    private static boolean mIsInstructionCloudPhone = "instruction".equals(SystemProperties.get("ro.sys.vmi.cloudphone", "unknow"));
+     /** Used to delay visibility updates sent to the autofill manager */
+     private Handler mVisibilityChangeForAutofillHandler;
+ 
+@@ -4808,7 +4814,11 @@ public class View implements Drawable.Ca
+         mUserPaddingStart = UNDEFINED_PADDING;
+         mUserPaddingEnd = UNDEFINED_PADDING;
+         mRenderNode = RenderNode.create(getClass().getName(), this);
+-
++	if (mIsInstructionCloudPhone && isInMainThread()) {
++	    intentFilter = new IntentFilter();
++	    intentFilter.addAction("com.android.vmi.restore");
++	    snapshotRestoreReceiver = new VmiSnapshotRestoreReceiver();
++	}
+         if (!sCompatibilityDone && context != null) {
+             final int targetSdkVersion = context.getApplicationInfo().targetSdkVersion;
+ 
+@@ -17813,6 +17823,12 @@ public class View implements Drawable.Ca
+      */
+     @CallSuper
+     protected void onAttachedToWindow() {
++	if (mIsInstructionCloudPhone && !mIsRegisterReceiver &&
++	    snapshotRestoreReceiver != null && intentFilter != null ) {
++	    mIsRegisterReceiver = true;
++	    mContext.registerReceiver(snapshotRestoreReceiver, intentFilter);
++	}
++
+         if ((mPrivateFlags & PFLAG_REQUEST_TRANSPARENT_REGIONS) != 0) {
+             mParent.requestTransparentRegion(this);
+         }
+@@ -18173,6 +18189,15 @@ public class View implements Drawable.Ca
+      */
+     @CallSuper
+     protected void onDetachedFromWindow() {
++        if (mIsInstructionCloudPhone && mIsRegisterReceiver &&
++	        snapshotRestoreReceiver != null && intentFilter != null) {
++	        mIsRegisterReceiver = false;
++            try {
++                mContext.unregisterReceiver(snapshotRestoreReceiver);
++            } catch (IllegalArgumentException e) {
++                Log.e(VIEW_LOG_TAG, "java.lang.IllegalArgumentException is occured.", e);
++            }
++        }
+     }
+ 
+     /**
+@@ -27451,6 +27476,17 @@ public class View implements Drawable.Ca
+                 && mAttachInfo.mTmpLocation[1] == insets.getStableInsetTop();
+     }
+ 
++    private class VmiSnapshotRestoreReceiver extends BroadcastReceiver {
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            postInvalidate();
++        }
++    }
++
++    private static boolean isInMainThread() {
++        return Looper.getMainLooper() == Looper.myLooper();
++    }
++
+     /**
+      * Sets the tooltip text which will be displayed in a small popup next to the view.
+      * <p>
+diff -Nurp a/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java b/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java
+--- a/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java	2021-02-19 17:33:14.603888291 +0800
++++ b/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java	2021-02-19 17:31:50.595888291 +0800
+@@ -18,6 +18,10 @@ package com.android.systemui;
+ 
+ import android.app.WallpaperManager;
+ import android.content.ComponentCallbacks2;
++import android.content.Context;
++import android.database.ContentObserver;
++import android.provider.Settings;
++import android.net.Uri;
+ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
+ import android.graphics.Rect;
+@@ -26,6 +30,7 @@ import android.graphics.Region.Op;
+ import android.os.AsyncTask;
+ import android.os.Handler;
+ import android.os.Trace;
++import android.os.SystemProperties;
+ import android.service.wallpaper.WallpaperService;
+ import android.util.Log;
+ import android.view.Display;
+@@ -51,11 +56,25 @@ public class ImageWallpaper extends WallpaperService {
+ 
+     private WallpaperManager mWallpaperManager;
+     private DrawableEngine mEngine;
+-
++    private Context mContext;
++    private static boolean mIsInstructionCloudPhone = "instruction".equals(SystemProperties.get("ro.sys.vmi.cloudphone", "unknow"));
++    final ContentObserver mVmiRunmodeObserver = new ContentObserver(new Handler()) {
++       @Override
++       public void onChange(boolean selfChange, Uri uri) {
++          drawFrame();
++       }
++    };
+     @Override
+     public void onCreate() {
+         super.onCreate();
+-        mWallpaperManager = getSystemService(WallpaperManager.class);
++	if (mIsInstructionCloudPhone) {
++ 	    mContext = getApplicationContext();
++	    if (mContext != null) {
++	        mContext.getContentResolver().registerContentObserver(
++	        Settings.Global.getUriFor("vmi_runmode"), true, mVmiRunmodeObserver);
++	    }
++	}
++	mWallpaperManager = getSystemService(WallpaperManager.class);
+     }
+ 
+     @Override
+@@ -71,6 +90,12 @@ public class ImageWallpaper extends WallpaperService {
+         return mEngine;
+     }
+ 
++    public void drawFrame() {
++ 	if (mEngine != null) {
++            mEngine.drawFrame();
++        }
++    }
++
+     class DrawableEngine extends Engine {
+         private final Runnable mUnloadWallpaperCallback = () -> {
+             unloadWallpaper(false /* forgetSize */);
+@@ -296,7 +321,9 @@ public class ImageWallpaper extends WallpaperService {
+                         Log.d(TAG, "Suppressed drawFrame since redraw is not needed "
+                                 + "and offsets have not changed.");
+                     }
+-                    return;
++                    if (!mIsInstructionCloudPhone) {
++                        return;
++	 	    }
+                 }
+                 mLastRotation = newRotation;
+                 mSurfaceRedrawNeeded = false;
+@@ -328,7 +355,9 @@ public class ImageWallpaper extends WallpaperService {
+                         Log.d(TAG, "Suppressed drawFrame since the image has not "
+                                 + "actually moved an integral number of pixels.");
+                     }
+-                    return;
++		    if (!mIsInstructionCloudPhone) {
++                        return;
++		    }
+                 }
+                 mLastXTranslation = xPixels;
+                 mLastYTranslation = yPixels;
+diff -Nurp a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
+index ce31ee7a..cb07cdcb 100644
+--- a/services/core/java/com/android/server/am/ActivityManagerService.java
++++ b/services/core/java/com/android/server/am/ActivityManagerService.java
+@@ -568,7 +568,7 @@ public class ActivityManagerService extends IActivityManager.Stub
+     static final String SYSTEM_DEBUGGABLE = "ro.debuggable";
+ 
+     // Maximum number of receivers an app can register.
+-    private static final int MAX_RECEIVERS_ALLOWED_PER_APP = 1000;
++    private static final int MAX_RECEIVERS_ALLOWED_PER_APP = 10000;
+ 
+     // Amount of time after a call to stopAppSwitches() during which we will
+     // prevent further untrusted switches from happening.
+diff -Nurp a/services/core/java/com/android/server/notification/NotificationManagerService.java b/services/core/java/com/android/server/notification/NotificationManagerService.java
+--- a/services/core/java/com/android/server/notification/NotificationManagerService.java	2021-05-28 16:08:42.598078586 +0800
++++ b/services/core/java/com/android/server/notification/NotificationManagerService.java	2021-05-28 16:24:36.630078586 +0800
+@@ -4112,7 +4112,7 @@ public class NotificationManagerService
+             }
+         }
+ 
+-        mHandler.post(new EnqueueNotificationRunnable(userId, r));
++        mHandler.postDelayed(new EnqueueNotificationRunnable(userId, r), 10);
+     }
+ 
+     private void doChannelWarningToast(CharSequence toastText) {
+diff -Nurp a/services/core/java/com/android/server/am/PreBootBroadcaster.java b/services/core/java/com/android/server/am/PreBootBroadcaster.java
+--- a/services/core/java/com/android/server/am/PreBootBroadcaster.java	2021-05-18 03:45:22.000000000 +0000
++++ b/services/core/java/com/android/server/am/PreBootBroadcaster.java	2021-06-04 09:38:51.506581523 +0000
+@@ -129,7 +129,7 @@ public abstract class PreBootBroadcaster
+             final int max = msg.arg1;
+             final int index = msg.arg2;
+ 
+-            switch (msg.what) {
++            switch (MSG_HIDE) {
+                 case MSG_SHOW:
+                     final CharSequence title = context
+                             .getText(R.string.android_upgrading_notification_title);
+diff -uprN a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java	2021-07-02 10:50:18.837555322 +0800
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java	2021-07-02 10:47:12.493562218 +0800
+@@ -325,7 +325,7 @@ public abstract class PanelView extends
+                 }
+                 if (isFullyCollapsed() && !mHeadsUpManager.hasPinnedHeadsUp()
+                         && !mStatusBar.isBouncerShowing()) {
+-                    startOpening(event);
++                    //startOpening(event); //stop drop-down menu
+                 }
+                 break;
+ 
+@@ -348,7 +348,7 @@ public abstract class PanelView extends
+                 }
+                 break;
+             case MotionEvent.ACTION_MOVE:
+-                trackMovement(event);
++                //trackMovement(event); //stop drop-down menu
+                 float h = y - mInitialTouchY;
+ 
+                 // If the panel was collapsed when touching, we only need to check for the
+@@ -387,13 +387,13 @@ public abstract class PanelView extends
+                 }
+                 if (!mJustPeeked && (!mGestureWaitForTouchSlop || mTracking) &&
+                         !isTrackingBlocked()) {
+-                    setExpandedHeightInternal(newHeight);
++                   //etExpandedHeightInternal(newHeight); //stop drop-down menu
+                 }
+                 break;
+ 
+             case MotionEvent.ACTION_UP:
+             case MotionEvent.ACTION_CANCEL:
+-                trackMovement(event);
++                //trackMovement(event); //stop drop-down menu
+                 endMotionEvent(event, x, y, false /* forceCancel */);
+                 break;
+         }
+@@ -493,7 +493,7 @@ public abstract class PanelView extends
+             long timePassed = SystemClock.uptimeMillis() - mDownTime;
+             if (timePassed < ViewConfiguration.getLongPressTimeout()) {
+                 // Lets show the user that he can actually expand the panel
+-                runPeekAnimation(PEEK_ANIMATION_DURATION, getPeekHeight(), true /* collapseWhenFinished */);
++                //runPeekAnimation(PEEK_ANIMATION_DURATION, getPeekHeight(), true /* collapseWhenFinished */); //stop drop-down menu
+             } else {
+                 // We need to collapse the panel since we peeked to the small height.
+                 postOnAnimation(mPostCollapseRunnable);

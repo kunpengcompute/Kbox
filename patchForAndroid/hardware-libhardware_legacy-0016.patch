@@ -1,0 +1,53 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff --git a/power.c b/power.c
+index 10ba380..3841593 100644
+--- a/power.c
++++ b/power.c
+@@ -28,6 +28,7 @@
+ #define LOG_TAG "power"
+ #include <log/log.h>
+ 
++#if 0
+ enum {
+     ACQUIRE_PARTIAL_WAKE_LOCK = 0,
+     RELEASE_WAKE_LOCK,
+@@ -80,10 +81,15 @@ initialize_fds(void)
+         g_initialized = 1;
+     }
+ }
++#endif
+ 
+ int
+ acquire_wake_lock(int lock, const char* id)
+ {
++    (void) id;
++    (void) lock;
++    return 1;
++#if 0
+     initialize_fds();
+ 
+ //    ALOGI("acquire_wake_lock lock=%d id='%s'\n", lock, id);
+@@ -105,11 +111,15 @@ acquire_wake_lock(int lock, const char* id)
+     }
+ 
+     return ret;
++#endif
+ }
+ 
+ int
+ release_wake_lock(const char* id)
+ {
++    (void) id;
++    return 1;
++#if 0
+     initialize_fds();
+ 
+ //    ALOGI("release_wake_lock id='%s'\n", id);
+@@ -121,4 +131,5 @@ release_wake_lock(const char* id)
+         return -errno;
+     }
+     return len;
++#endif
+ }

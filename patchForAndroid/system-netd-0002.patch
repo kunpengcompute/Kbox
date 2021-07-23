@@ -1,0 +1,107 @@
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
+
+diff --git a/server/CommandListener.cpp b/server/CommandListener.cpp
+index b2e988e7..163d527a 100644
+--- a/server/CommandListener.cpp
++++ b/server/CommandListener.cpp
+@@ -273,7 +273,7 @@ int CommandListener::InterfaceCmd::runCommand(SocketClient *cli,
+             return 0;
+         } else if (!strcmp(argv[1], "clearaddrs")) {
+             // arglist: iface
+-            ALOGD("Clearing all IP addresses on %s", argv[2]);
++            // ALOGD("Clearing all IP addresses on %s", argv[2]);
+ 
+             ifc_clear_addresses(argv[2]);
+ 
+diff --git a/server/Controllers.cpp b/server/Controllers.cpp
+index 221a20a3..caff5351 100644
+--- a/server/Controllers.cpp
++++ b/server/Controllers.cpp
+@@ -233,6 +233,9 @@ void Controllers::initChildChains() {
+ }
+ 
+ void Controllers::initIptablesRules() {
++    if (true) {
++        return;
++    }
+     Stopwatch s;
+     initChildChains();
+     ALOGI("Creating child chains: %.1fms", s.getTimeAndReset());
+@@ -273,8 +276,8 @@ void Controllers::init() {
+     }
+     ALOGI("initializing traffic control: %.1fms", s.getTimeAndReset());
+ 
+-    bandwidthCtrl.enableBandwidthControl(false);
+-    ALOGI("Disabling bandwidth control: %.1fms", s.getTimeAndReset());
++    // bandwidthCtrl.enableBandwidthControl(false);
++    // ALOGI("Disabling bandwidth control: %.1fms", s.getTimeAndReset());
+ 
+     if (int ret = RouteController::Init(NetworkController::LOCAL_NET_ID)) {
+         ALOGE("failed to initialize RouteController (%s)", strerror(-ret));
+diff --git a/server/FwmarkServer.cpp b/server/FwmarkServer.cpp
+index 32b856a6..272bff9d 100644
+--- a/server/FwmarkServer.cpp
++++ b/server/FwmarkServer.cpp
+@@ -317,10 +317,12 @@ int FwmarkServer::processClient(SocketClient* client, int* socketFd) {
+ 
+     fwmark.permission = permission;
+ 
++#if 0
+     if (setsockopt(*socketFd, SOL_SOCKET, SO_MARK, &fwmark.intValue,
+                    sizeof(fwmark.intValue)) == -1) {
+         return -errno;
+     }
++#endif
+ 
+     return 0;
+ }
+diff --git a/server/IptablesRestoreController.cpp b/server/IptablesRestoreController.cpp
+index 88d88f64..88f932b9 100644
+--- a/server/IptablesRestoreController.cpp
++++ b/server/IptablesRestoreController.cpp
+@@ -128,8 +128,8 @@ void IptablesRestoreController::Init() {
+     // use by the other child process. see https://android-review.googlesource.com/469559 for what
+     // breaks. This does not cause a latency hit, because the parent only has to wait for
+     // forkAndExec, which is sub-millisecond, and the child processes then call exec() in parallel.
+-    mIpRestore.reset(forkAndExec(IPTABLES_PROCESS));
+-    mIp6Restore.reset(forkAndExec(IP6TABLES_PROCESS));
++    // mIpRestore.reset(forkAndExec(IPTABLES_PROCESS));
++    // mIp6Restore.reset(forkAndExec(IP6TABLES_PROCESS));
+ }
+ 
+ /* static */
+@@ -206,6 +206,10 @@ IptablesProcess* IptablesRestoreController::forkAndExec(const IptablesProcessTyp
+ int IptablesRestoreController::sendCommand(const IptablesProcessType type,
+                                            const std::string& command,
+                                            std::string *output) {
++    (void) type;
++    (void) command;
++    (void) output;
++#if 0
+    std::unique_ptr<IptablesProcess> *process =
+            (type == IPTABLES_PROCESS) ? &mIpRestore : &mIp6Restore;
+ 
+@@ -248,6 +252,7 @@ int IptablesRestoreController::sendCommand(const IptablesProcessType type,
+         // drainAndWaitForAck has already logged an error.
+         return -1;
+     }
++#endif
+ 
+     return 0;
+ }
+diff --git a/server/NetlinkManager.cpp b/server/NetlinkManager.cpp
+index ccf433a3..8447eae4 100644
+--- a/server/NetlinkManager.cpp
++++ b/server/NetlinkManager.cpp
+@@ -85,8 +85,8 @@ NetlinkHandler *NetlinkManager::setupSocket(int *sock, int netlinkFamily,
+     // When running in a net/user namespace, SO_RCVBUFFORCE will fail because
+     // it will check for the CAP_NET_ADMIN capability in the root namespace.
+     // Try using SO_RCVBUF if that fails.
+-    if (setsockopt(*sock, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz)) < 0 &&
+-        setsockopt(*sock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)) < 0) {
++   // if (setsockopt(*sock, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz)) < 0 &&
++      if (setsockopt(*sock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)) < 0) {
+         ALOGE("Unable to set uevent socket SO_RCVBUF option: %s", strerror(errno));
+         close(*sock);
+         return NULL;

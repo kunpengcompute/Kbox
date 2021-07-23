@@ -1,0 +1,661 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 2 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 0ef485c47..9109bda76 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1046,6 +1046,18 @@ config XEN
+ 	help
+ 	  Say Y if you want to run Linux in a Virtual Machine on Xen on ARM64.
+ 
++config EXAGEAR_BT
++       bool "Exagear binary translator support"
++       depends on COMPAT
++       select CHECKPOINT_RESTORE
++       select BINFMT_MISC
++       default y
++       help
++         Kernel support for the Exagear binary translator which dynamically
++         translates 32-bit ARM binaries into 64-bit code.
++
++
++
+ config FORCE_MAX_ZONEORDER
+ 	int
+ 	default "14" if (ARM64_64K_PAGES && TRANSPARENT_HUGEPAGE)
+diff --git a/arch/arm64/include/asm/compat.h b/arch/arm64/include/asm/compat.h
+index b0d53a265..c4e83ea4f 100644
+--- a/arch/arm64/include/asm/compat.h
++++ b/arch/arm64/include/asm/compat.h
+@@ -197,11 +197,36 @@ struct compat_shmid64_ds {
+ };
+ 
+ static inline int is_compat_task(void)
++{
++#ifdef CONFIG_EXAGEAR_BT
++       return current_thread_info()->exagear_syscall || test_thread_flag(TIF_32BIT);
++#else
++       return test_thread_flag(TIF_32BIT);
++#endif
++}
++
++static inline int is_aarch32_compat_task(void)
+ {
+ 	return test_thread_flag(TIF_32BIT);
+ }
+ 
++#ifdef CONFIG_EXAGEAR_BT
++static inline int is_exagear_compat_task(void)
++{
++       return current_thread_info()->exagear_syscall;
++}
++#endif
++
+ static inline int is_compat_thread(struct thread_info *thread)
++{
++#ifdef CONFIG_EXAGEAR_BT
++	return current_thread_info()->exagear_syscall || test_ti_thread_flag(thread, TIF_32BIT);
++#else
++	return test_ti_thread_flag(thread, TIF_32BIT);
++#endif
++}
++
++static inline int is_aarch32_compat_thread(struct thread_info *thread)
+ {
+ 	return test_ti_thread_flag(thread, TIF_32BIT);
+ }
+diff --git a/arch/arm64/include/asm/mmu.h b/arch/arm64/include/asm/mmu.h
+index f217e3292..31fb41abe 100644
+--- a/arch/arm64/include/asm/mmu.h
++++ b/arch/arm64/include/asm/mmu.h
+@@ -20,6 +20,9 @@ typedef struct {
+ 	atomic64_t	id;
+ 	void		*vdso;
+ 	unsigned long	flags;
++#ifdef CONFIG_EXAGEAR_BT
++       unsigned long   exagear_mmap_base;
++#endif
+ } mm_context_t;
+ 
+ /*
+diff --git a/arch/arm64/include/asm/pgtable.h b/arch/arm64/include/asm/pgtable.h
+index 13ebe2bad..1368d28b5 100644
+--- a/arch/arm64/include/asm/pgtable.h
++++ b/arch/arm64/include/asm/pgtable.h
+@@ -861,6 +861,16 @@ static inline void update_mmu_cache(struct vm_area_struct *vma,
+ #define phys_to_ttbr(addr)	(addr)
+ #endif
+ 
++/*
++ * We provide our own arch_get_unmapped_area to handle 32-bit mmap calls from
++ * exagear.
++ */
++#ifdef CONFIG_EXAGEAR_BT
++#define HAVE_ARCH_UNMAPPED_AREA
++#define HAVE_ARCH_UNMAPPED_AREA_TOPDOWN
++#define HAVE_ARCH_HUGETLB_UNMAPPED_AREA
++#endif
++
+ #endif /* !__ASSEMBLY__ */
+ 
+ #endif /* __ASM_PGTABLE_H */
+diff --git a/arch/arm64/include/asm/processor.h b/arch/arm64/include/asm/processor.h
+index 5623685c7..ab4ae0e8b 100644
+--- a/arch/arm64/include/asm/processor.h
++++ b/arch/arm64/include/asm/processor.h
+@@ -165,7 +165,7 @@ static inline void arch_thread_struct_whitelist(unsigned long *offset,
+ #define task_user_tls(t)						\
+ ({									\
+ 	unsigned long *__tls;						\
+-	if (is_compat_thread(task_thread_info(t)))			\
++	if (is_aarch32_compat_thread(task_thread_info(t)))			\
+ 		__tls = &(t)->thread.uw.tp2_value;			\
+ 	else								\
+ 		__tls = &(t)->thread.uw.tp_value;			\
+@@ -254,8 +254,29 @@ extern struct task_struct *cpu_switch_to(struct task_struct *prev,
+ #define task_pt_regs(p) \
+ 	((struct pt_regs *)(THREAD_SIZE + task_stack_page(p)) - 1)
+ 
++#ifdef CONFIG_EXAGEAR_BT
++#define KSTK_EIP(tsk)                                                  \
++({                                                                     \
++       unsigned long __out;                                            \
++       if (task_thread_info(tsk)->exagear_syscall)                       \
++               __out = (unsigned long)task_pt_regs(tsk)->regs[15];     \
++       else                                                            \
++               __out = (unsigned long)task_pt_regs(tsk)->pc;           \
++       __out;                                                          \
++ })
++#define KSTK_ESP(tsk)                                                  \
++({                                                                     \
++       unsigned long __out;                                            \
++       if (task_thread_info(tsk)->exagear_syscall)                       \
++               __out = (unsigned long)task_pt_regs(tsk)->regs[13];     \
++       else                                                            \
++               __out = user_stack_pointer(task_pt_regs(tsk));          \
++       __out;                                                          \
++ })
++#else
+ #define KSTK_EIP(tsk)	((unsigned long)task_pt_regs(tsk)->pc)
+ #define KSTK_ESP(tsk)	user_stack_pointer(task_pt_regs(tsk))
++#endif
+ 
+ /*
+  * Prefetching support
+diff --git a/arch/arm64/include/asm/thread_info.h b/arch/arm64/include/asm/thread_info.h
+index f0cec4160..8ba9525e6 100644
+--- a/arch/arm64/include/asm/thread_info.h
++++ b/arch/arm64/include/asm/thread_info.h
+@@ -41,6 +41,9 @@ struct thread_info {
+ #endif
+ 		} preempt;
+ 	};
++#ifdef CONFIG_EXAGEAR_BT
++       int                     exagear_syscall;  /* exagear 32-bit syscall */
++#endif
+ };
+ 
+ #define thread_saved_pc(tsk)	\
+diff --git a/arch/arm64/kernel/asm-offsets.c b/arch/arm64/kernel/asm-offsets.c
+index 214685760..17dd980a6 100644
+--- a/arch/arm64/kernel/asm-offsets.c
++++ b/arch/arm64/kernel/asm-offsets.c
+@@ -35,6 +35,9 @@ int main(void)
+   DEFINE(TSK_TI_TTBR0,		offsetof(struct task_struct, thread_info.ttbr0));
+ #endif
+   DEFINE(TSK_STACK,		offsetof(struct task_struct, stack));
++#ifdef CONFIG_EXAGEAR_BT
++  DEFINE(TI_EXAGEAR_SYSCALL,     offsetof(struct task_struct, thread_info.exagear_syscall));
++#endif
+ #ifdef CONFIG_STACKPROTECTOR
+   DEFINE(TSK_STACK_CANARY,	offsetof(struct task_struct, stack_canary));
+ #endif
+diff --git a/arch/arm64/kernel/fpsimd.c b/arch/arm64/kernel/fpsimd.c
+index 1765e5284..ed23e83ed 100644
+--- a/arch/arm64/kernel/fpsimd.c
++++ b/arch/arm64/kernel/fpsimd.c
+@@ -925,7 +925,7 @@ void fpsimd_release_task(struct task_struct *dead_task)
+ asmlinkage void do_sve_acc(unsigned int esr, struct pt_regs *regs)
+ {
+ 	/* Even if we chose not to use SVE, the hardware could still trap: */
+-	if (unlikely(!system_supports_sve()) || WARN_ON(is_compat_task())) {
++	if (unlikely(!system_supports_sve()) || WARN_ON(is_aarch32_compat_task())) {
+ 		force_signal_inject(SIGILL, ILL_ILLOPC, regs->pc);
+ 		return;
+ 	}
+diff --git a/arch/arm64/kernel/hw_breakpoint.c b/arch/arm64/kernel/hw_breakpoint.c
+index 38ee1514c..75a7e7df7 100644
+--- a/arch/arm64/kernel/hw_breakpoint.c
++++ b/arch/arm64/kernel/hw_breakpoint.c
+@@ -168,7 +168,7 @@ static int is_compat_bp(struct perf_event *bp)
+ 	 * deprecated behaviour if we use unaligned watchpoints in
+ 	 * AArch64 state.
+ 	 */
+-	return tsk && is_compat_thread(task_thread_info(tsk));
++	return tsk && is_aarch32_compat_thread(task_thread_info(tsk));
+ }
+ 
+ /**
+diff --git a/arch/arm64/kernel/perf_regs.c b/arch/arm64/kernel/perf_regs.c
+index 0bbac6121..97d99770b 100644
+--- a/arch/arm64/kernel/perf_regs.c
++++ b/arch/arm64/kernel/perf_regs.c
+@@ -47,7 +47,7 @@ int perf_reg_validate(u64 mask)
+ 
+ u64 perf_reg_abi(struct task_struct *task)
+ {
+-	if (is_compat_thread(task_thread_info(task)))
++	if (is_aarch32_compat_thread(task_thread_info(task)))
+ 		return PERF_SAMPLE_REGS_ABI_32;
+ 	else
+ 		return PERF_SAMPLE_REGS_ABI_64;
+diff --git a/arch/arm64/kernel/process.c b/arch/arm64/kernel/process.c
+index fab013c5e..e40ce193c 100644
+--- a/arch/arm64/kernel/process.c
++++ b/arch/arm64/kernel/process.c
+@@ -298,7 +298,7 @@ static void tls_thread_flush(void)
+ {
+ 	write_sysreg(0, tpidr_el0);
+ 
+-	if (is_compat_task()) {
++	if (is_aarch32_compat_task()) {
+ 		current->thread.uw.tp_value = 0;
+ 
+ 		/*
+@@ -387,7 +387,7 @@ int copy_thread_tls(unsigned long clone_flags, unsigned long stack_start,
+ 		*task_user_tls(p) = read_sysreg(tpidr_el0);
+ 
+ 		if (stack_start) {
+-			if (is_compat_thread(task_thread_info(p)))
++			if (is_aarch32_compat_thread(task_thread_info(p)))
+ 				childregs->compat_sp = stack_start;
+ 			else
+ 				childregs->sp = stack_start;
+@@ -432,7 +432,7 @@ static void tls_thread_switch(struct task_struct *next)
+ {
+ 	tls_preserve_current_state();
+ 
+-	if (is_compat_thread(task_thread_info(next)))
++	if (is_aarch32_compat_thread(task_thread_info(next)))
+ 		write_sysreg(next->thread.uw.tp_value, tpidrro_el0);
+ 	else if (!arm64_kernel_unmapped_at_el0())
+ 		write_sysreg(0, tpidrro_el0);
+@@ -569,7 +569,10 @@ unsigned long arch_align_stack(unsigned long sp)
+  */
+ void arch_setup_new_exec(void)
+ {
+-	current->mm->context.flags = is_compat_task() ? MMCF_AARCH32 : 0;
++#ifdef CONFIG_EXAGEAR_BT
++	current_thread_info()->exagear_syscall = 0;
++#endif
++	current->mm->context.flags = is_aarch32_compat_task() ? MMCF_AARCH32 : 0;
+ 
+ 	ptrauth_thread_init_user(current);
+ }
+diff --git a/arch/arm64/kernel/ptrace.c b/arch/arm64/kernel/ptrace.c
+index 9168c4f1a..08ea72d4e 100644
+--- a/arch/arm64/kernel/ptrace.c
++++ b/arch/arm64/kernel/ptrace.c
+@@ -175,7 +175,7 @@ static void ptrace_hbptriggered(struct perf_event *bp,
+ 	const char *desc = "Hardware breakpoint trap (ptrace)";
+ 
+ #ifdef CONFIG_COMPAT
+-	if (is_compat_task()) {
++	if (is_aarch32_compat_task()) {
+ 		int si_errno = 0;
+ 		int i;
+ 
+@@ -1788,7 +1788,7 @@ const struct user_regset_view *task_user_regset_view(struct task_struct *task)
+ 	 */
+ 	if (is_compat_task())
+ 		return &user_aarch32_view;
+-	else if (is_compat_thread(task_thread_info(task)))
++	else if (is_aarch32_compat_thread(task_thread_info(task)))
+ 		return &user_aarch32_ptrace_view;
+ #endif
+ 	return &user_aarch64_view;
+@@ -1937,7 +1937,7 @@ int valid_user_regs(struct user_pt_regs *regs, struct task_struct *task)
+ 	if (!test_tsk_thread_flag(task, TIF_SINGLESTEP))
+ 		regs->pstate &= ~DBG_SPSR_SS;
+ 
+-	if (is_compat_thread(task_thread_info(task)))
++	if (is_aarch32_compat_thread(task_thread_info(task)))
+ 		return valid_compat_regs(regs);
+ 	else
+ 		return valid_native_regs(regs);
+diff --git a/arch/arm64/kernel/signal.c b/arch/arm64/kernel/signal.c
+index dd2cdc0d5..eed33e759 100644
+--- a/arch/arm64/kernel/signal.c
++++ b/arch/arm64/kernel/signal.c
+@@ -792,7 +792,7 @@ static void handle_signal(struct ksignal *ksig, struct pt_regs *regs)
+ 	/*
+ 	 * Set up the stack frame
+ 	 */
+-	if (is_compat_task()) {
++	if (is_aarch32_compat_task()) {
+ 		if (ksig->ka.sa.sa_flags & SA_SIGINFO)
+ 			ret = compat_setup_rt_frame(usig, ksig, oldset, regs);
+ 		else
+diff --git a/arch/arm64/kernel/ssbd.c b/arch/arm64/kernel/ssbd.c
+index 52cfc6148..64e51cee3 100644
+--- a/arch/arm64/kernel/ssbd.c
++++ b/arch/arm64/kernel/ssbd.c
+@@ -14,7 +14,7 @@
+ 
+ static void ssbd_ssbs_enable(struct task_struct *task)
+ {
+-	u64 val = is_compat_thread(task_thread_info(task)) ?
++	u64 val = is_aarch32_compat_thread(task_thread_info(task)) ?
+ 		  PSR_AA32_SSBS_BIT : PSR_SSBS_BIT;
+ 
+ 	task_pt_regs(task)->pstate |= val;
+@@ -22,7 +22,7 @@ static void ssbd_ssbs_enable(struct task_struct *task)
+ 
+ static void ssbd_ssbs_disable(struct task_struct *task)
+ {
+-	u64 val = is_compat_thread(task_thread_info(task)) ?
++	u64 val = is_aarch32_compat_thread(task_thread_info(task)) ?
+ 		  PSR_AA32_SSBS_BIT : PSR_SSBS_BIT;
+ 
+ 	task_pt_regs(task)->pstate &= ~val;
+diff --git a/arch/arm64/kernel/syscall.c b/arch/arm64/kernel/syscall.c
+index 871c739f0..c242c71cc 100644
+--- a/arch/arm64/kernel/syscall.c
++++ b/arch/arm64/kernel/syscall.c
+@@ -21,7 +21,7 @@ static long do_ni_syscall(struct pt_regs *regs, int scno)
+ {
+ #ifdef CONFIG_COMPAT
+ 	long ret;
+-	if (is_compat_task()) {
++	if (is_aarch32_compat_task()) {
+ 		ret = compat_arm_syscall(regs, scno);
+ 		if (ret != -ENOSYS)
+ 			return ret;
+@@ -122,6 +122,9 @@ static void el0_svc_common(struct pt_regs *regs, int scno, int sc_nr,
+ 		local_daif_mask();
+ 		flags = current_thread_info()->flags;
+ 		if (!has_syscall_work(flags)) {
++#ifdef CONFIG_EXAGEAR_BT
++                       current_thread_info()->exagear_syscall = 0;
++#endif
+ 			/*
+ 			 * We're off to userspace, where interrupts are
+ 			 * always enabled after we restore the flags from
+@@ -135,6 +138,9 @@ static void el0_svc_common(struct pt_regs *regs, int scno, int sc_nr,
+ 
+ trace_exit:
+ 	syscall_trace_exit(regs);
++#ifdef CONFIG_EXAGEAR_BT
++       current_thread_info()->exagear_syscall = 0;
++#endif
+ }
+ 
+ static inline void sve_user_discard(void)
+@@ -157,6 +163,13 @@ static inline void sve_user_discard(void)
+ asmlinkage void el0_svc_handler(struct pt_regs *regs)
+ {
+ 	sve_user_discard();
++#ifdef CONFIG_EXAGEAR_BT
++        if (regs->regs[8] & 0x80000000) {
++                current_thread_info()->exagear_syscall = 1;
++                el0_svc_common(regs, regs->regs[7], __NR_compat_syscalls,
++                               compat_sys_call_table);
++        } else
++#endif
+ 	el0_svc_common(regs, regs->regs[8], __NR_syscalls, sys_call_table);
+ }
+ 
+diff --git a/arch/arm64/mm/mmap.c b/arch/arm64/mm/mmap.c
+index 3028bacbc..96f7b3a6f 100644
+--- a/arch/arm64/mm/mmap.c
++++ b/arch/arm64/mm/mmap.c
+@@ -17,9 +17,16 @@
+ #include <linux/io.h>
+ #include <linux/personality.h>
+ #include <linux/random.h>
++#include <linux/security.h>
++#include <linux/hugetlb.h>
+ 
+ #include <asm/cputype.h>
+ 
++#ifdef CONFIG_EXAGEAR_BT
++/* Definitions for Exagear's guest mmap area */
++#define EXAGEAR_TASK_UNMAPPED_BASE        PAGE_ALIGN(TASK_SIZE_32 / 4)
++#endif
++
+ /*
+  * You really shouldn't be using read() or write() on /dev/mem.  This might go
+  * away in the future.
+@@ -68,3 +75,183 @@ int devmem_is_allowed(unsigned long pfn)
+ }
+ 
+ #endif
++
++#ifdef CONFIG_EXAGEAR_BT
++
++/* Get an address range which is currently unmapped.
++ * For shmat() with addr=0.
++ *
++ * Ugly calling convention alert:
++ * Return value with the low bits set means error value,
++ * ie
++ *	if (ret & ~PAGE_MASK)
++ *		error = ret;
++ *
++ * This function "knows" that -ENOMEM has the bits set.
++ */
++unsigned long
++arch_get_unmapped_area(struct file *filp, unsigned long addr,
++		unsigned long len, unsigned long pgoff, unsigned long flags)
++{
++	struct mm_struct *mm = current->mm;
++	struct vm_area_struct *vma, *prev;
++	struct vm_unmapped_area_info info;
++	bool bad_addr = false;
++
++	if (len > TASK_SIZE - mmap_min_addr)
++		return -ENOMEM;
++
++	/*
++	 * Ensure that translated processes do not allocate the last
++	 * page of the 32-bit address space, or anything above it.
++	 */
++	if (is_exagear_compat_task())
++		bad_addr = addr + len > TASK_SIZE_32 - PAGE_SIZE;
++
++	if (flags & MAP_FIXED)
++		return bad_addr ? -ENOMEM : addr;
++
++	if (addr && !bad_addr) {
++		addr = PAGE_ALIGN(addr);
++		vma = find_vma_prev(mm, addr, &prev);
++		if (TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
++		    (!vma || addr + len <= vm_start_gap(vma)) &&
++		    (!prev || addr >= vm_end_gap(prev)))
++			return addr;
++	}
++
++	info.flags = 0;
++	info.length = len;
++	if (is_exagear_compat_task()) {
++		info.low_limit = mm->context.exagear_mmap_base;
++		info.high_limit = TASK_SIZE_32 - PAGE_SIZE;
++	} else {
++		info.low_limit = mm->mmap_base;
++		info.high_limit = TASK_SIZE;
++	}
++	info.align_mask = 0;
++	return vm_unmapped_area(&info);
++}
++
++/*
++ * This mmap-allocator allocates new areas top-down from below the
++ * stack's low limit (the base):
++ */
++unsigned long
++arch_get_unmapped_area_topdown(struct file *filp, const unsigned long addr0,
++			  const unsigned long len, const unsigned long pgoff,
++			  const unsigned long flags)
++{
++	struct vm_area_struct *vma, *prev;
++	struct mm_struct *mm = current->mm;
++	unsigned long addr = addr0;
++	struct vm_unmapped_area_info info;
++	bool bad_addr = false;
++
++	/* requested length too big for entire address space */
++	if (len > TASK_SIZE - mmap_min_addr)
++		return -ENOMEM;
++
++	/*
++	 * Ensure that translated processes do not allocate the last
++	 * page of the 32-bit address space, or anything above it.
++	 */
++	if (is_exagear_compat_task())
++		bad_addr = addr + len > TASK_SIZE_32 - PAGE_SIZE;
++
++	if (flags & MAP_FIXED)
++		return bad_addr ? -ENOMEM : addr;
++
++	/* requesting a specific address */
++	if (addr && !bad_addr) {
++		addr = PAGE_ALIGN(addr);
++		vma = find_vma_prev(mm, addr, &prev);
++		if (TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
++				(!vma || addr + len <= vm_start_gap(vma)) &&
++				(!prev || addr >= vm_end_gap(prev)))
++			return addr;
++	}
++
++	info.flags = VM_UNMAPPED_AREA_TOPDOWN;
++	info.length = len;
++	info.low_limit = max(PAGE_SIZE, mmap_min_addr);
++	if (is_exagear_compat_task())
++		info.high_limit = mm->context.exagear_mmap_base;
++	else
++		info.high_limit = mm->mmap_base;
++	info.align_mask = 0;
++	addr = vm_unmapped_area(&info);
++
++	/*
++	 * A failed mmap() very likely causes application failure,
++	 * so fall back to the bottom-up function here. This scenario
++	 * can happen with large stack limits and large mmap()
++	 * allocations.
++	 */
++	if (offset_in_page(addr)) {
++		VM_BUG_ON(addr != -ENOMEM);
++		info.flags = 0;
++		if (is_exagear_compat_task()) {
++			info.low_limit = EXAGEAR_TASK_UNMAPPED_BASE;
++			info.high_limit = TASK_SIZE_32 - PAGE_SIZE;
++		} else {
++			info.low_limit = TASK_UNMAPPED_BASE;
++			info.high_limit = TASK_SIZE;
++		}
++		addr = vm_unmapped_area(&info);
++	}
++
++	return addr;
++}
++
++unsigned long
++hugetlb_get_unmapped_area(struct file *file, unsigned long addr,
++		unsigned long len, unsigned long pgoff, unsigned long flags)
++{
++	struct mm_struct *mm = current->mm;
++	struct vm_area_struct *vma;
++	struct hstate *h = hstate_file(file);
++	struct vm_unmapped_area_info info;
++	bool bad_addr = false;
++
++	if (len & ~huge_page_mask(h))
++		return -EINVAL;
++	if (len > TASK_SIZE)
++		return -ENOMEM;
++
++	/*
++	 * Ensure that translated processes do not allocate the last
++	 * page of the 32-bit address space, or anything above it.
++	 */
++	if (is_exagear_compat_task())
++		bad_addr = addr + len > TASK_SIZE_32 - PAGE_SIZE;
++
++	if (flags & MAP_FIXED) {
++		if (prepare_hugepage_range(file, addr, len))
++			return -EINVAL;
++		return bad_addr ? -ENOMEM : addr;
++	}
++
++	if (addr && !bad_addr) {
++		addr = ALIGN(addr, huge_page_size(h));
++		vma = find_vma(mm, addr);
++		if (TASK_SIZE - len >= addr &&
++		    (!vma || addr + len <= vm_start_gap(vma)))
++			return addr;
++	}
++
++	info.flags = 0;
++	info.length = len;
++	if (is_exagear_compat_task()) {
++		info.low_limit = EXAGEAR_TASK_UNMAPPED_BASE;
++		info.high_limit = TASK_SIZE_32 - PAGE_SIZE;
++	} else {
++		info.low_limit = TASK_UNMAPPED_BASE;
++		info.high_limit = TASK_SIZE;
++	}
++	info.align_mask = PAGE_MASK & ~huge_page_mask(h);
++	info.align_offset = 0;
++	return vm_unmapped_area(&info);
++}
++
++#endif
+diff --git a/mm/util.c b/mm/util.c
+index 3ad6db9a7..c0970c1ad 100644
+--- a/mm/util.c
++++ b/mm/util.c
+@@ -324,7 +324,7 @@ unsigned long randomize_stack_top(unsigned long stack_top)
+ unsigned long arch_randomize_brk(struct mm_struct *mm)
+ {
+ 	/* Is the current task 32bit ? */
+-	if (!IS_ENABLED(CONFIG_64BIT) || is_compat_task())
++	if (!IS_ENABLED(CONFIG_64BIT) || is_aarch32_compat_task())
+ 		return randomize_page(mm->brk, SZ_32M);
+ 
+ 	return randomize_page(mm->brk, SZ_1G);
+@@ -383,19 +383,64 @@ static unsigned long mmap_base(unsigned long rnd, struct rlimit *rlim_stack)
+ 	return PAGE_ALIGN(STACK_TOP - gap - rnd);
+ }
+ 
++#ifdef CONFIG_EXAGEAR_BT
++/* Definitions for Exagear's guest mmap area */
++#define EXAGEAR_STACK_TOP			0xffff0000
++#define EXAGEAR_MAX_GAP			(EXAGEAR_STACK_TOP/6*5)
++#define EXAGEAR_TASK_UNMAPPED_BASE	PAGE_ALIGN(TASK_SIZE_32 / 4)
++#endif
++
++#ifdef CONFIG_EXAGEAR_BT
++static unsigned long exagear_mmap_base(unsigned long rnd)
++{
++	unsigned long gap = rlimit(RLIMIT_STACK);
++
++	if (gap < MIN_GAP)
++		gap = MIN_GAP;
++	else if (gap > EXAGEAR_MAX_GAP)
++		gap = EXAGEAR_MAX_GAP;
++
++	return PAGE_ALIGN(EXAGEAR_STACK_TOP - gap - rnd);
++}
++#endif
++
++/*
++ *  * This function, called very early during the creation of a new process VM
++ *   * image, sets up which VM layout function to use:
++ *    */
+ void arch_pick_mmap_layout(struct mm_struct *mm, struct rlimit *rlim_stack)
+ {
+ 	unsigned long random_factor = 0UL;
++#ifdef CONFIG_EXAGEAR_BT
++	unsigned long exagear_random_factor = 0UL;
++#endif
+ 
+-	if (current->flags & PF_RANDOMIZE)
++	if (current->flags & PF_RANDOMIZE) {
+ 		random_factor = arch_mmap_rnd();
++#ifdef CONFIG_EXAGEAR_BT
++		exagear_random_factor = (get_random_long() &
++			((1UL << mmap_rnd_compat_bits) - 1)) << PAGE_SHIFT;
++#endif
+ 
++	}
++
++	/*
++ * 	 * Fall back to the standard layout if the personality bit is set, or
++ * 	 	 * if the expected stack growth is unlimited:
++ * 	 	 	 */
+ 	if (mmap_is_legacy(rlim_stack)) {
+ 		mm->mmap_base = TASK_UNMAPPED_BASE + random_factor;
+ 		mm->get_unmapped_area = arch_get_unmapped_area;
++#ifdef CONFIG_EXAGEAR_BT
++		mm->context.exagear_mmap_base = EXAGEAR_TASK_UNMAPPED_BASE +
++			exagear_random_factor;
++#endif
+ 	} else {
+ 		mm->mmap_base = mmap_base(random_factor, rlim_stack);
+ 		mm->get_unmapped_area = arch_get_unmapped_area_topdown;
++#ifdef CONFIG_EXAGEAR_BT
++		mm->context.exagear_mmap_base = exagear_mmap_base(exagear_random_factor);
++#endif
+ 	}
+ }
+ #elif defined(CONFIG_MMU) && !defined(HAVE_ARCH_PICK_MMAP_LAYOUT)
