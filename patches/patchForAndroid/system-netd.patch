@@ -1,0 +1,111 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+diff --git a/server/Controllers.cpp b/server/Controllers.cpp
+index c941a80..feba34c 100644
+--- a/server/Controllers.cpp
++++ b/server/Controllers.cpp
+@@ -237,6 +237,7 @@ void Controllers::initChildChains() {
+ }
+ 
+ void Controllers::initIptablesRules() {
++#if 0
+     Stopwatch s;
+     initChildChains();
+     gLog.info("Creating child chains: %.1fms", s.getTimeAndReset());
+@@ -272,6 +273,7 @@ void Controllers::initIptablesRules() {
+      */
+     strictCtrl.setupIptablesHooks();
+     gLog.info("Setting up StrictController hooks: %.1fms", s.getTimeAndReset());
++#endif
+ }
+ 
+ void Controllers::init() {
+@@ -288,8 +290,8 @@ void Controllers::init() {
+     gLog.info("Initializing traffic control: %.1fms", s.getTimeAndReset());
+ 
+     bandwidthCtrl.setBpfEnabled(trafficCtrl.getBpfLevel() != android::bpf::BpfLevel::NONE);
+-    bandwidthCtrl.enableBandwidthControl();
+-    gLog.info("Enabling bandwidth control: %.1fms", s.getTimeAndReset());
++    //bandwidthCtrl.enableBandwidthControl();
++    //gLog.info("Enabling bandwidth control: %.1fms", s.getTimeAndReset());
+ 
+     if (int ret = RouteController::Init(NetworkController::LOCAL_NET_ID)) {
+         gLog.error("Failed to initialize RouteController (%s)", strerror(-ret));
+diff --git a/server/FwmarkServer.cpp b/server/FwmarkServer.cpp
+index 51d5398..c409345 100644
+--- a/server/FwmarkServer.cpp
++++ b/server/FwmarkServer.cpp
+@@ -308,12 +308,12 @@ int FwmarkServer::processClient(SocketClient* client, int* socketFd) {
+     }
+ 
+     fwmark.permission = permission;
+-
++#if 0
+     if (setsockopt(*socketFd, SOL_SOCKET, SO_MARK, &fwmark.intValue,
+                    sizeof(fwmark.intValue)) == -1) {
+         return -errno;
+     }
+-
++#endif
+     return 0;
+ }
+ 
+diff --git a/server/IptablesRestoreController.cpp b/server/IptablesRestoreController.cpp
+index 8339177..c49bd76 100644
+--- a/server/IptablesRestoreController.cpp
++++ b/server/IptablesRestoreController.cpp
+@@ -128,8 +128,8 @@ void IptablesRestoreController::Init() {
+     // use by the other child process. see https://android-review.googlesource.com/469559 for what
+     // breaks. This does not cause a latency hit, because the parent only has to wait for
+     // forkAndExec, which is sub-millisecond, and the child processes then call exec() in parallel.
+-    mIpRestore.reset(forkAndExec(IPTABLES_PROCESS));
+-    mIp6Restore.reset(forkAndExec(IP6TABLES_PROCESS));
++    //mIpRestore.reset(forkAndExec(IPTABLES_PROCESS));
++    //mIp6Restore.reset(forkAndExec(IP6TABLES_PROCESS));
+ }
+ 
+ /* static */
+@@ -206,6 +206,10 @@ IptablesProcess* IptablesRestoreController::forkAndExec(const IptablesProcessTyp
+ int IptablesRestoreController::sendCommand(const IptablesProcessType type,
+                                            const std::string& command,
+                                            std::string *output) {
++   (void) type;
++   (void) command;
++   (void) output;
++#if 0
+    std::unique_ptr<IptablesProcess> *process =
+            (type == IPTABLES_PROCESS) ? &mIpRestore : &mIp6Restore;
+ 
+@@ -248,7 +252,7 @@ int IptablesRestoreController::sendCommand(const IptablesProcessType type,
+         // drainAndWaitForAck has already logged an error.
+         return -1;
+     }
+-
++#endif
+     return 0;
+ }
+ 
+diff --git a/server/NetlinkManager.cpp b/server/NetlinkManager.cpp
+index d014443..06a2b2b 100644
+--- a/server/NetlinkManager.cpp
++++ b/server/NetlinkManager.cpp
+@@ -84,8 +84,8 @@ NetlinkHandler *NetlinkManager::setupSocket(int *sock, int netlinkFamily,
+     // When running in a net/user namespace, SO_RCVBUFFORCE will fail because
+     // it will check for the CAP_NET_ADMIN capability in the root namespace.
+     // Try using SO_RCVBUF if that fails.
+-    if (setsockopt(*sock, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz)) < 0 &&
+-        setsockopt(*sock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)) < 0) {
++    //if (setsockopt(*sock, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz)) < 0 &&
++    if (setsockopt(*sock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)) < 0) {
+         ALOGE("Unable to set uevent socket SO_RCVBUF option: %s", strerror(errno));
+         close(*sock);
+         return nullptr;

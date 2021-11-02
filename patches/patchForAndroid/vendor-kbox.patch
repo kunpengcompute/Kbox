@@ -1,0 +1,440 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+diff --git a/products/AndroidProducts.mk b/products/AndroidProducts.mk
+new file mode 100644
+index 0000000..f73c86b
+--- /dev/null
++++ b/products/AndroidProducts.mk
+@@ -0,0 +1,9 @@
++
++PRODUCT_MAKEFILES := \
++	$(LOCAL_DIR)/Android_arm64.mk
++
++
++COMMON_LUNCH_CHOICES := \
++    Android_arm64-eng \
++    Android_arm64-userdebug \
++    Android_arm64-user \
+diff --git a/products/Android_arm64.mk b/products/Android_arm64.mk
+new file mode 100644
+index 0000000..c27b951
+--- /dev/null
++++ b/products/Android_arm64.mk
+@@ -0,0 +1,21 @@
++#Copyright (c) Huawei Technologies Co., Ltd. 2020-2021. All rights reserved.
++
++
++$(call inherit-product, $(LOCAL_PATH)/arm64/device.mk)
++$(call inherit-product, $(LOCAL_PATH)/kbox.mk)
++
++PRODUCT_CHARACTERISTICS := tablet
++
++PRODUCT_NAME := Android_arm64
++PRODUCT_DEVICE := arm64
++PRODUCT_BRAND := HUAWEI
++PRODUCT_MODEL := Bird
++PRODUCT_MANUFACTURER := Bird
++
++
++exagear = $(wildcard vendor/huawei/exagear/exagear.mk)
++ifneq ($(exagear),)
++WITH_EXAGEAR := true
++include $(exagear)
++endif
++
+diff --git a/products/arm64/BoardConfig.mk b/products/arm64/BoardConfig.mk
+new file mode 100644
+index 0000000..d767daa
+--- /dev/null
++++ b/products/arm64/BoardConfig.mk
+@@ -0,0 +1,54 @@
++# config.mk
++#
++# Product-specific compile-time definitions.
++#
++
++# The generic product target doesn't have any hardware-specific pieces.
++TARGET_NO_BOOTLOADER := true
++TARGET_NO_KERNEL := true
++
++TARGET_ARCH := arm64
++TARGET_ARCH_VARIANT := armv8-a
++TARGET_CPU_ABI := arm64-v8a
++TARGET_CPU_VARIANT := cortex-a53
++
++TARGET_2ND_ARCH := arm
++TARGET_2ND_ARCH_VARIANT := armv7-a-neon
++TARGET_2ND_CPU_ABI := armeabi-v7a
++TARGET_2ND_CPU_ABI2 := armeabi
++TARGET_2ND_CPU_VARIANT := cortex-a15
++
++AUDIOSERVER_MULTILIB := 64
++
++TARGET_USES_64_BIT_BINDER := true
++
++TARGET_BOARD_PLATFORM := Bird
++
++# Some framework code requires this to enable BT
++BOARD_HAVE_BLUETOOTH := true
++BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR := device/generic/common/bluetooth
++
++BOARD_USES_GENERIC_AUDIO := true
++
++USE_CAMERA_STUB := true
++
++BUILD_EMULATOR_OPENGL := true
++USE_OPENGL_RENDERER := true
++
++BOARD_USE_LEGACY_UI := true
++
++# Enable dex-preoptimization to speed up the first boot sequence
++# of an SDK AVD. Note that this operation only works on Linux for now
++ifeq ($(HOST_OS),linux)
++WITH_DEXPREOPT ?= true
++endif
++
++# PDK does not use ext4 image, but it is added here to prevent build break.
++TARGET_USERIMAGES_USE_EXT4 := true
++BOARD_SYSTEMIMAGE_PARTITION_SIZE := 2147483648 # 2 GB
++BOARD_USERDATAIMAGE_PARTITION_SIZE := 576716800
++BOARD_CACHEIMAGE_PARTITION_SIZE := 69206016
++BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE := ext4
++BOARD_FLASH_BLOCK_SIZE := 512
++TARGET_USERIMAGES_SPARSE_EXT_DISABLED := true
++
+diff --git a/products/arm64/device.mk b/products/arm64/device.mk
+new file mode 100644
+index 0000000..805608a
+--- /dev/null
++++ b/products/arm64/device.mk
+@@ -0,0 +1,26 @@
++#
++# Copyright (C) 2013 The Android Open-Source Project
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++
++# Copy the 64-bit primary, 32-bit secondary zygote startup script
++PRODUCT_COPY_FILES += system/core/rootdir/init.zygote64_32.rc:root/init.zygote64_32.rc
++
++# Set the zygote property to select the 64-bit primary, 32-bit secondary script
++# This line must be parsed before the one in core_minimal.mk
++PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.zygote=zygote64_32
++
++TARGET_SUPPORTS_32_BIT_APPS := true
++TARGET_SUPPORTS_64_BIT_APPS := true
++
+diff --git a/products/hook_cpuinfo.sh b/products/hook_cpuinfo.sh
+new file mode 100755
+index 0000000..fd781aa
+--- /dev/null
++++ b/products/hook_cpuinfo.sh
+@@ -0,0 +1,7 @@
++#!/system/bin/sh
++ 
++cat /proc/cpuinfo |sed 's/^Features[[:blank:]]*:[[:blank:]].*$/Features        : half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 idiva idivt lpae evtstrm aes pmull sha1 sha2 crc32/g' > /system/cpuinfo_merge
++chmod 644 /system/cpuinfo_merge
++umount /proc/cpuinfo
++mount --bind /system/cpuinfo_merge /proc/cpuinfo
++mount |grep cpuinfo
+diff --git a/products/init.bird.rc b/products/init.bird.rc
+new file mode 100644
+index 0000000..a4daaa7
+--- /dev/null
++++ b/products/init.bird.rc
+@@ -0,0 +1,64 @@
++
++on early-init
++    mount debugfs debugfs /sys/kernel/debug
++
++on init
++
++on boot
++    setprop ARGH ARGH
++    setprop ro.radio.use-ppp no
++    setprop ro.build.product bird
++    setprop ro.product.device bird
++
++# fake some battery state
++    setprop status.battery.state Slow
++    setprop status.battery.level 5
++    setprop status.battery.level_raw  50
++    setprop status.battery.level_scale 9
++
++# set up the GPU caching
++    setprop ro.hwui.texture_cache_size 72
++    setprop ro.hwui.layer_cache_size 48
++    setprop ro.hwui.r_buffer_cache_size 8
++    setprop ro.hwui.path_cache_size 32
++    setprop ro.hwui.gradient_cache_size 1
++    setprop ro.hwui.drop_shadow_cache_size 6
++    setprop ro.hwui.texture_cache_flushrate 0.4
++    setprop ro.hwui.text_small_cache_width 1024
++    setprop ro.hwui.text_small_cache_height 1024
++    setprop ro.hwui.text_large_cache_width 2048
++    setprop ro.hwui.text_large_cache_height 1024
++
++# disable some daemons the emulator doesn't want
++    stop dund
++    stop akmd
++
++# start essential services
++    start goldfish-setup
++    start vInput
++
++# setprop ro.setupwizard.mode EMULATOR
++
++# enable Google-specific location features,
++# like NetworkLocationProvider and LocationCollector
++    setprop ro.com.google.locationfeatures 1
++
++
++on fs
++        mount_all /fstab.goldfish
++
++service vInput /system/bin/vInput
++    class core
++    user root
++    group root
++    oneshot
++
++# -Q is a special logcat option that forces the
++# program to check wether it runs on the emulator
++# if it does, it redirects its output to the device
++# named by the androidboot.console kernel option
++# if not, is simply exits immediately
++
++#service goldfish-logcat /system/bin/logcat -Q
++#    oneshot
++
+diff --git a/products/kbox.mk b/products/kbox.mk
+new file mode 100644
+index 0000000..fcdf771
+--- /dev/null
++++ b/products/kbox.mk
+@@ -0,0 +1,110 @@
++#Copyright (c) Huawei Technologies Co., Ltd. 2020-2021. All rights reserved.
++
++# Include drawables for all densities
++PRODUCT_AAPT_CONFIG := normal xhdpi
++
++USE_XML_AUDIO_POLICY_CONF := 1
++
++PRODUCT_PACKAGES += \
++	Launcher3 \
++	gps.bird \
++	libgpscustom \
++	gps.ranchu \
++	android.hardware.graphics.composer@2.1-impl \
++	android.hardware.graphics.composer@2.1-service \
++	android.hardware.graphics.mapper@2.0-impl-2.1 \
++	android.hardware.graphics.allocator@2.0-impl \
++	android.hardware.graphics.allocator@2.0-service \
++	android.hardware.graphics.mapper@2.0-impl \
++	android.hardware.audio@2.0-service \
++	android.hardware.audio@2.0-impl \
++	android.hardware.audio.effect@2.0-impl \
++	android.hardware.media.c2@1.0-service \
++	android.hardware.configstore@1.1 \
++	android.hardware.configstore@1.1-service \
++	android.hardware.gnss@1.0 \
++	android.hardware.gnss@1.0-service \
++	android.hardware.gnss@1.0-impl \
++
++#PRODUCT_PACKAGES += \
++    android.hardware.audio@4.0-impl:32 \
++    android.hardware.audio.effect@4.0-impl:32 \
++    android.hardware.broadcastradio@1.1-service \
++    android.hardware.broadcastradio@1.0-impl \
++    android.hardware.soundtrigger@2.0-impl \
++
++PRODUCT_PACKAGES += \
++    android.hardware.drm@1.0-service \
++    android.hardware.drm@1.0-impl \
++    android.hardware.drm@1.2-service.clearkey \
++
++PRODUCT_PROPERTY_OVERRIDES += \
++	ro.hardware=bird \
++	ro.hardware.gralloc=gbm \
++	ro.hardware.hwcomposer=huawei \
++	net.dns1=114.114.114.114\
++	net.dns2=10.129.54.132\
++# Disable any software key elements in the UI
++PRODUCT_PROPERTY_OVERRIDES += \
++        qemu.hw.mainkeys=0
++
++PRODUCT_PROPERTY_OVERRIDES += \
++    persist.sys.timezone=Asia/Shanghai
++
++PRODUCT_PROPERTY_OVERRIDES += \
++    persist.sys.strictmode.visual=0 \
++    persist.sys.strictmode.disable=true \
++    ro.setupwizard.mode=DISABLED
++
++PRODUCT_AAPT_PREF_CONFIG := xhdpi
++
++PRODUCT_PROPERTY_OVERRIDES += \
++    ro.sf.lcd_density=320
++
++PRODUCT_LOCALES := zh_CN en_US
++
++# Disable boot-animation permanently
++PRODUCT_PROPERTY_OVERRIDES += \
++    debug.sf.nobootanimation=1
++
++$(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
++# Extend heap size we use for dalvik/art runtime
++$(call inherit-product, frameworks/native/build/phone-xhdpi-2048-dalvik-heap.mk)
++
++PRODUCT_PACKAGES += \
++	Dialer \
++
++PRODUCT_COPY_FILES += \
++	vendor/kbox/products/init.bird.rc:root/init.bird.rc \
++	vendor/kbox/products/ueventd.bird.rc:root/ueventd.bird.rc \
++	frameworks/native/data/etc/android.software.app_widgets.xml:system/etc/permissions/android.software.app_widgets.xml \
++	vendor/kbox/products/kbox.xml:system/etc/permissions/kbox.xml \
++	device/generic/goldfish/camera/media_profiles.xml:system/etc/media_profiles.xml \
++	vendor/kbox/products/manifest.xml:$(TARGET_COPY_OUT_VENDOR)/manifest.xml \
++	frameworks/av/services/audiopolicy/enginedefault/config/example/phone/audio_policy_engine_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_engine_configuration.xml \
++	frameworks/av/services/audiopolicy/config/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml \
++	frameworks/av/services/audiopolicy/config/primary_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/primary_audio_policy_configuration.xml \
++	frameworks/av/services/audiopolicy/config/r_submix_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/r_submix_audio_policy_configuration.xml \
++	frameworks/av/services/audiopolicy/config/audio_policy_volumes.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_volumes.xml \
++	frameworks/av/services/audiopolicy/config/default_volume_tables.xml:$(TARGET_COPY_OUT_VENDOR)/etc/default_volume_tables.xml \
++	frameworks/av/services/audiopolicy/config/surround_sound_configuration_5_0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/surround_sound_configuration_5_0.xml \
++	frameworks/av/services/audiopolicy/config/a2dp_in_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_in_audio_policy_configuration.xml \
++	frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml \
++	frameworks/av/services/audiopolicy/config/msd_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/msd_audio_policy_configuration.xml \
++	frameworks/av/services/audiopolicy/config/bluetooth_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth_audio_policy_configuration.xml \
++	frameworks/av/media/libeffects/data/audio_effects.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.xml \
++	frameworks/av/media/libstagefright/data/media_codecs_google_audio.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_google_audio.xml \
++	frameworks/av/media/libstagefright/data/media_codecs_google_telephony.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_google_telephony.xml \
++	frameworks/av/media/libstagefright/data/media_codecs_google_video.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_google_video.xml \
++	device/generic/goldfish/camera/media_codecs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs.xml \
++	frameworks/native/data/etc/android.hardware.opengles.aep.xml:system/etc/permissions/android.hardware.opengles.aep.xml \
++	frameworks/native/data/etc/android.hardware.vulkan.level-1.xml:system/etc/permissions/android.hardware.vulkan.level.xml \
++        frameworks/native/data/etc/android.hardware.vulkan.version-1_1.xml:system/etc/permissions/android.hardware.vulkan.version.xml \
++	frameworks/native/data/etc/android.software.backup.xml:system/etc/permissions/android.software.backup.xml \
++	frameworks/native/data/etc/android.hardware.usb.accessory.xml:system/etc/permissions/android.hardware.usb.accessory.xml \
++	vendor/kbox/products/hook_cpuinfo.sh:system/bin/hook_cpuinfo.sh
++
++
++DEVICE_PACKAGE_OVERLAYS += \
++        vendor/kbox/products/overlay
++
+diff --git a/products/kbox.xml b/products/kbox.xml
+new file mode 100644
+index 0000000..3cc3f38
+--- /dev/null
++++ b/products/kbox.xml
+@@ -0,0 +1,7 @@
++<permissions>
++    <feature name="android.software.activities_on_secondary_displays" />
++    <feature name="android.hardware.ethernet" />
++    <feature name="android.hardware.wifi" />
++    <feature name="android.hardware.camera" />
++</permissions>
++
+diff --git a/products/manifest.xml b/products/manifest.xml
+new file mode 100644
+index 0000000..8288710
+--- /dev/null
++++ b/products/manifest.xml
+@@ -0,0 +1,32 @@
++<manifest version="1.0" type="device" target-level="3">
++    <hal format="hidl">
++        <name>android.hardware.drm</name>
++        <transport>hwbinder</transport>
++        <version>1.0</version>
++        <interface>
++            <name>ICryptoFactory</name>
++            <instance>default</instance>
++        </interface>
++        <interface>
++            <name>IDrmFactory</name>
++            <instance>default</instance>
++        </interface>
++        <fqname>@1.0::ICryptoFactory/default</fqname>
++        <fqname>@1.0::IDrmFactory/default</fqname>
++        <fqname>@1.2::ICryptoFactory/clearkey</fqname>
++        <fqname>@1.2::IDrmFactory/clearkey</fqname>
++    </hal>
++    <hal format="hidl">
++        <name>android.hardware.media.omx</name>
++        <transport>hwbinder</transport>
++        <version>1.0</version>
++        <interface>
++            <name>IOmx</name>
++            <instance>default</instance>
++        </interface>
++        <interface>
++            <name>IOmxStore</name>
++            <instance>default</instance>
++        </interface>
++    </hal>
++</manifest>
+diff --git a/products/overlay/frameworks/base/packages/SettingsProvider/res/values/defaults.xml b/products/overlay/frameworks/base/packages/SettingsProvider/res/values/defaults.xml
+new file mode 100644
+index 0000000..5c7a32a
+--- /dev/null
++++ b/products/overlay/frameworks/base/packages/SettingsProvider/res/values/defaults.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2015 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources>
++    <!-- Do not enable auto rotation switching -->
++    <bool name="def_accelerometer_rotation">false</bool>
++    <!-- Disable the lockscreen -->
++    <bool name="def_lockscreen_disabled">true</bool>
++    <!-- No setup wizard -->
++    <bool name="def_device_provisioned">true</bool>
++    <!-- Default for Settings.Secure.SHOW_IME_WITH_HARD_KEYBOARD -->
++    <bool name="def_show_ime_with_hard_keyboard">true</bool>
++    <bool name="def_user_setup_complete">true</bool>
++    <bool name="def_stay_on_while_plugged_in">true</bool>
++</resources>
+diff --git a/products/ueventd.bird.rc b/products/ueventd.bird.rc
+new file mode 100644
+index 0000000..2c3ac4e
+--- /dev/null
++++ b/products/ueventd.bird.rc
+@@ -0,0 +1,6 @@
++# These settings are specific to running under the Android emulator
++/dev/qemu_trace           0666   system     system
++/dev/qemu_pipe            0666   system     system
++/dev/goldfish_pipe        0666   system     system
++/dev/ttyS*                0666   system     system
++/proc                     0666   system     system

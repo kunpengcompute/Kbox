@@ -1,0 +1,189 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 2 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+diff --git a/Makefile b/Makefile
+index 90e6154..9f1a920 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,14 @@
+-ccflags-y += -I$(src)			# needed for trace events
++ccflags-y += -I$(src) -Wno-error=implicit-int -Wno-int-conversion
++obj-m := ashmem_linux.o
++ashmem_linux-y := deps.o ashmem.o
+ 
+-obj-y					+= ion/
++KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
+ 
+-obj-$(CONFIG_ASHMEM)			+= ashmem.o
+-obj-$(CONFIG_ANDROID_VSOC)		+= vsoc.o
++all:
++	$(MAKE) -C $(KERNEL_SRC) V=0 M=$$PWD
++
++install:
++	cp ashmem_linux.ko $(DESTDIR)/
++
++clean:
++	rm -rf deps.h *.o *.ko *.mod.c *.symvers *.order .*.cmd .tmp_versions
+diff --git a/ashmem.c b/ashmem.c
+index 74d497d..5397d30 100644
+--- a/ashmem.c
++++ b/ashmem.c
+@@ -10,6 +10,7 @@
+ 
+ #define pr_fmt(fmt) "ashmem: " fmt
+ 
++#include <linux/module.h>
+ #include <linux/init.h>
+ #include <linux/export.h>
+ #include <linux/file.h>
+@@ -24,6 +25,7 @@
+ #include <linux/bitops.h>
+ #include <linux/mutex.h>
+ #include <linux/shmem_fs.h>
++#include <linux/version.h>
+ #include "ashmem.h"
+ 
+ #define ASHMEM_NAME_PREFIX "dev/ashmem/"
+@@ -129,8 +131,7 @@ static inline bool page_range_in_range(struct ashmem_range *range,
+ 		page_range_subsumes_range(range, start, end);
+ }
+ 
+-static inline bool range_before_page(struct ashmem_range *range,
+-				     size_t page)
++static inline bool range_before_page(struct ashmem_range *range, size_t page)
+ {
+ 	return range->pgend < page;
+ }
+@@ -406,9 +407,13 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
+ 			fput(asma->file);
+ 			goto out;
+ 		}
+-	} else {
+-		vma_set_anonymous(vma);
+-	}
++ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
++         } else {
++                 vma_set_anonymous(vma);
++         }
++ #else
++         }
++ #endif
+ 
+ 	if (vma->vm_file)
+ 		fput(vma->vm_file);
+@@ -877,6 +882,7 @@ static struct miscdevice ashmem_misc = {
+ 	.minor = MISC_DYNAMIC_MINOR,
+ 	.name = "ashmem",
+ 	.fops = &ashmem_fops,
++	.mode = 0777,
+ };
+ 
+ static int __init ashmem_init(void)
+@@ -911,7 +917,7 @@ static int __init ashmem_init(void)
+ 		goto out_demisc;
+ 	}
+ 
+-	pr_info("initialized\n");
++	pr_info("ashmem initialized\n");
+ 
+ 	return 0;
+ 
+@@ -924,4 +930,16 @@ out_free1:
+ out:
+ 	return ret;
+ }
+-device_initcall(ashmem_init);
++
++static void __exit ashmem_exit(void)
++{
++	unregister_shrinker(&ashmem_shrinker);
++	misc_deregister(&ashmem_misc);
++	kmem_cache_destroy(ashmem_range_cachep);
++	kmem_cache_destroy(ashmem_area_cachep);
++}
++
++module_init(ashmem_init);
++module_exit(ashmem_exit);
++
++MODULE_LICENSE("GPL");
+diff --git a/ashmem.h b/ashmem.h
+index 1a47817..5abcfd7 100644
+--- a/ashmem.h
++++ b/ashmem.h
+@@ -1,9 +1,12 @@
+-/* SPDX-License-Identifier: GPL-2.0 OR Apache-2.0 */
+ /*
+  * include/linux/ashmem.h
+  *
+  * Copyright 2008 Google Inc.
+  * Author: Robert Love
++ *
++ * This file is dual licensed.  It may be redistributed and/or modified
++ * under the terms of the Apache 2.0 License OR version 2 of the GNU
++ * General Public License.
+  */
+ 
+ #ifndef _LINUX_ASHMEM_H
+diff --git a/deps.c b/deps.c
+new file mode 100644
+index 0000000..ce6016f
+--- /dev/null
++++ b/deps.c
+@@ -0,0 +1,11 @@
++#include <linux/mm.h>
++#include <linux/kallsyms.h>
++
++static int (*shmem_zero_setup_ptr)(struct vm_area_struct *) = NULL;
++
++int shmem_zero_setup(struct vm_area_struct *vma)
++{
++	if (!shmem_zero_setup_ptr)
++		shmem_zero_setup_ptr = kallsyms_lookup_name("shmem_zero_setup");
++	return shmem_zero_setup_ptr(vma);
++}
+diff --git a/dkms.conf b/dkms.conf
+new file mode 100644
+index 0000000..feba05e
+--- /dev/null
++++ b/dkms.conf
+@@ -0,0 +1,7 @@
++PACKAGE_NAME="anbox-ashmem"
++PACKAGE_VERSION="1"
++CLEAN="make clean"
++MAKE[0]="make all KERNEL_SRC=/lib/modules/$(uname -r)/build"
++BUILT_MODULE_NAME[0]="ashmem_linux"
++DEST_MODULE_LOCATION[0]="/updates"
++AUTOINSTALL="yes"
+diff --git a/uapi/ashmem.h b/uapi/ashmem.h
+index 5442e00..ba4743c 100644
+--- a/uapi/ashmem.h
++++ b/uapi/ashmem.h
+@@ -1,16 +1,18 @@
+-/* SPDX-License-Identifier: GPL-2.0 OR Apache-2.0 */
+ /*
+  * drivers/staging/android/uapi/ashmem.h
+  *
+  * Copyright 2008 Google Inc.
+  * Author: Robert Love
++ *
++ * This file is dual licensed.  It may be redistributed and/or modified
++ * under the terms of the Apache 2.0 License OR version 2 of the GNU
++ * General Public License.
+  */
+ 
+ #ifndef _UAPI_LINUX_ASHMEM_H
+ #define _UAPI_LINUX_ASHMEM_H
+ 
+ #include <linux/ioctl.h>
+-#include <linux/types.h>
+ 
+ #define ASHMEM_NAME_LEN		256
+ 

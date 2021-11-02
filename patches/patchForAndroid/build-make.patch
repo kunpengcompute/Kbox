@@ -1,0 +1,71 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+diff --git a/core/clang/config.mk b/core/clang/config.mk
+index 28a75ec..7f6d1c5 100644
+--- a/core/clang/config.mk
++++ b/core/clang/config.mk
+@@ -1,8 +1,13 @@
+ ## Clang configurations.
+ 
+-LLVM_READOBJ := $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/bin/llvm-readobj
++#LLVM_READOBJ := $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/bin/llvm-readobj
+ 
+-LLVM_RTLIB_PATH := $(LLVM_PREBUILTS_BASE)/linux-x86/$(LLVM_PREBUILTS_VERSION)/lib64/clang/$(LLVM_RELEASE_VERSION)/lib/linux/
++#LLVM_RTLIB_PATH := $(LLVM_PREBUILTS_BASE)/linux-x86/$(LLVM_PREBUILTS_VERSION)/lib64/clang/$(LLVM_RELEASE_VERSION)/lib/linux/
++
++LLVM_RTLIB_PATH := $(LLVM_PREBUILTS_PATH)/../lib64/clang/$(LLVM_RELEASE_VERSION)/lib/linux/
++CLANG_TBLGEN := $(BUILD_OUT_EXECUTABLES)/clang-tblgen$(BUILD_EXECUTABLE_SUFFIX)
++LLVM_TBLGEN := $(BUILD_OUT_EXECUTABLES)/llvm-tblgen$(BUILD_EXECUTABLE_SUFFIX)
++LLVM70_TBLGEN := $(BUILD_OUT_EXECUTABLES)/llvm70-tblgen$(BUILD_EXECUTABLE_SUFFIX)
+ 
+ define convert-to-clang-flags
+ $(strip $(filter-out $(CLANG_CONFIG_UNKNOWN_CFLAGS),$(1)))
+diff --git a/core/tasks/check_boot_jars/package_whitelist.txt b/core/tasks/check_boot_jars/package_whitelist.txt
+index 38f2be5..6e92b7a 100644
+--- a/core/tasks/check_boot_jars/package_whitelist.txt
++++ b/core/tasks/check_boot_jars/package_whitelist.txt
+@@ -242,3 +242,6 @@ com\.google\.vr\.platform.*
+ # Packages used for Android in Chrome OS
+ org\.chromium\.arc
+ org\.chromium\.arc\..*
++
++# HUAWEI
++com\.huawei\.android\.os
+\ No newline at end of file
+diff --git a/tools/buildinfo.sh b/tools/buildinfo.sh
+index 24ac663..ea71a73 100755
+--- a/tools/buildinfo.sh
++++ b/tools/buildinfo.sh
+@@ -55,4 +55,10 @@ if [ -n "$BUILD_THUMBPRINT" ] ; then
+   echo "ro.build.thumbprint=$BUILD_THUMBPRINT"
+ fi
+ 
++# Set the default volume to the maximum value.
++echo "ro.config.vc_call_vol_default=5"
++echo "ro.config.media_vol_default=15"
++echo "ro.config.alarm_vol_default=7"
++echo "ro.config.system_vol_default=7"
++
+ echo "# end build properties"
+diff --git a/tools/fs_config/Android.mk b/tools/fs_config/Android.mk
+index af0da46..4bcac63 100644
+--- a/tools/fs_config/Android.mk
++++ b/tools/fs_config/Android.mk
+@@ -35,7 +35,7 @@ fs_config_generate_extra_partition_list := $(strip \
+   $(if $(BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE),product) \
+   $(if $(BOARD_PRODUCT_SERVICESIMAGE_FILE_SYSTEM_TYPE),product_services) \
+ )
+-
++fs_config_generate_extra_partition_list := product
+ ##################################
+ # Generate the <p>/etc/fs_config_dirs binary files for each partition.
+ # Add fs_config_dirs to PRODUCT_PACKAGES in the device make file to enable.

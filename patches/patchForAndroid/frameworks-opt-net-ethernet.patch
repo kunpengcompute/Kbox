@@ -1,0 +1,23 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+diff --git a/java/com/android/server/ethernet/EthernetConfigStore.java b/java/com/android/server/ethernet/EthernetConfigStore.java
+index 6b623f4..f1b55db 100644
+--- a/java/com/android/server/ethernet/EthernetConfigStore.java
++++ b/java/com/android/server/ethernet/EthernetConfigStore.java
+@@ -47,6 +47,7 @@ public class EthernetConfigStore {
+ 
+             // This configuration may exist in old file versions when there was only a single active
+             // Ethernet interface.
++			configs = IpConfigStore.readIpAndProxyFromIfconfig();
+             if (configs.containsKey("0")) {
+                 mIpConfigurationForDefaultInterface = configs.remove("0");
+             }

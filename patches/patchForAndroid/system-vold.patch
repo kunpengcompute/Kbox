@@ -1,0 +1,66 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+diff --git a/AppFuseUtil.cpp b/AppFuseUtil.cpp
+index 711e70b..c503f02 100644
+--- a/AppFuseUtil.cpp
++++ b/AppFuseUtil.cpp
+@@ -54,9 +54,7 @@ static android::status_t Mount(int device_fd, const std::string& path) {
+         "rootmode=40000,"
+         "default_permissions,"
+         "allow_other,"
+-        "user_id=0,group_id=0,"
+-        "context=\"u:object_r:app_fuse_file:s0\","
+-        "fscontext=u:object_r:app_fusefs:s0",
++		"user_id=0,group_id=0,",
+         device_fd);
+ 
+     const int result =
+diff --git a/IdleMaint.cpp b/IdleMaint.cpp
+index bca22f6..1f44c83 100644
+--- a/IdleMaint.cpp
++++ b/IdleMaint.cpp
+@@ -145,6 +145,8 @@ static void addFromFstab(std::list<std::string>* paths, PathTypes path_type) {
+ }
+ 
+ void Trim(const android::sp<android::os::IVoldTaskListener>& listener) {
++	(void) listener;
++#if 0
+     acquire_wake_lock(PARTIAL_WAKE_LOCK, kWakeLock);
+ 
+     // Collect both fstab and vold volumes
+@@ -196,6 +198,7 @@ void Trim(const android::sp<android::os::IVoldTaskListener>& listener) {
+     }
+ 
+     release_wake_lock(kWakeLock);
++#endif
+ }
+ 
+ static bool waitForGc(const std::list<std::string>& paths) {
+diff --git a/model/EmulatedVolume.cpp b/model/EmulatedVolume.cpp
+index 552fe2f..1171078 100644
+--- a/model/EmulatedVolume.cpp
++++ b/model/EmulatedVolume.cpp
+@@ -119,8 +119,12 @@ status_t EmulatedVolume::doMount() {
+         }
+     }
+     /* sdcardfs will have exited already. FUSE will still be running */
+-    TEMP_FAILURE_RETRY(waitpid(mFusePid, nullptr, 0));
+-    mFusePid = 0;
++    // We use FUSE, the child process is always running.
++    // Use WNOHANG, so waitpid won't block here.
++    // This trick is copied from aosp9.
++    if (TEMP_FAILURE_RETRY(waitpid(mFusePid, nullptr, WNOHANG)) == mFusePid) {
++        mFusePid = 0;
++    }
+ 
+     return OK;
+ }

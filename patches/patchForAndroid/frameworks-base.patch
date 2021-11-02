@@ -1,0 +1,1245 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
+diff --git a/cmds/uiautomator/cmds/uiautomator/src/com/android/commands/uiautomator/DumpCommand.java b/cmds/uiautomator/cmds/uiautomator/src/com/android/commands/uiautomator/DumpCommand.java
+index c35f7fc3..6957d5b3 100644
+--- a/cmds/uiautomator/cmds/uiautomator/src/com/android/commands/uiautomator/DumpCommand.java
++++ b/cmds/uiautomator/cmds/uiautomator/src/com/android/commands/uiautomator/DumpCommand.java
+@@ -16,10 +16,15 @@
+ 
+ package com.android.commands.uiautomator;
+ 
++import android.app.IActivityTaskManager;
+ import android.app.UiAutomation;
++import android.content.Context;
+ import android.graphics.Point;
+ import android.hardware.display.DisplayManagerGlobal;
+ import android.os.Environment;
++import android.os.RemoteException;
++import android.os.ServiceManager;
++import android.util.Log;
+ import android.view.Display;
+ import android.view.accessibility.AccessibilityNodeInfo;
+ 
+@@ -91,8 +96,18 @@ public class DumpCommand extends Command {
+                 return;
+             }
+ 
++            // get focused window display id instead of DEFAULT_DISPLAY(0)
++            int focusedId = Display.DEFAULT_DISPLAY;
++            try {
++                IActivityTaskManager service = IActivityTaskManager.Stub.asInterface(
++                    ServiceManager.getService(Context.ACTIVITY_TASK_SERVICE));
++                focusedId = service.getFocusedStackInfo().displayId;
++                Log.d("DumpCommand", "get focused display id:" + focusedId);
++	    } catch (RemoteException e) {
++                Log.d("DumpCommand", "failed to get focused display id");
++	    }
+             Display display =
+-                    DisplayManagerGlobal.getInstance().getRealDisplay(Display.DEFAULT_DISPLAY);
++                    DisplayManagerGlobal.getInstance().getRealDisplay(focusedId);
+             int rotation = display.getRotation();
+             Point size = new Point();
+             display.getSize(size);
+diff --git a/core/java/android/net/ConnectivityManager.java b/core/java/android/net/ConnectivityManager.java
+index 111a8c48..43c338ef 100644
+--- a/core/java/android/net/ConnectivityManager.java
++++ b/core/java/android/net/ConnectivityManager.java
+@@ -894,13 +894,15 @@ public class ConnectivityManager {
+      */
+     @Deprecated
+     public static boolean isNetworkTypeWifi(int networkType) {
++	    /*
+         switch (networkType) {
+             case TYPE_WIFI:
+             case TYPE_WIFI_P2P:
+                 return true;
+             default:
+                 return false;
+-        }
++        }*/
++		return true;
+     }
+ 
+     /**
+diff --git a/core/java/android/net/NetworkInfo.java b/core/java/android/net/NetworkInfo.java
+index 92f105f7..09e8f893 100644
+--- a/core/java/android/net/NetworkInfo.java
++++ b/core/java/android/net/NetworkInfo.java
+@@ -205,7 +205,8 @@ public class NetworkInfo implements Parcelable {
+     @Deprecated
+     public int getType() {
+         synchronized (this) {
+-            return mNetworkType;
++            // return mNetworkType;
++            return ConnectivityManager.TYPE_WIFI;
+         }
+     }
+ 
+@@ -260,7 +261,8 @@ public class NetworkInfo implements Parcelable {
+     @Deprecated
+     public String getTypeName() {
+         synchronized (this) {
+-            return mTypeName;
++            // return mTypeName;
++            return "WIFI";
+         }
+     }
+ 
+@@ -295,7 +297,8 @@ public class NetworkInfo implements Parcelable {
+     @Deprecated
+     public boolean isConnectedOrConnecting() {
+         synchronized (this) {
+-            return mState == State.CONNECTED || mState == State.CONNECTING;
++            // return mState == State.CONNECTED || mState == State.CONNECTING;
++            return true;
+         }
+     }
+ 
+@@ -315,7 +318,8 @@ public class NetworkInfo implements Parcelable {
+     @Deprecated
+     public boolean isConnected() {
+         synchronized (this) {
+-            return mState == State.CONNECTED;
++            // return mState == State.CONNECTED;
++            return true;
+         }
+     }
+ 
+@@ -343,7 +347,8 @@ public class NetworkInfo implements Parcelable {
+     @Deprecated
+     public boolean isAvailable() {
+         synchronized (this) {
+-            return mIsAvailable;
++            // return mIsAvailable;
++            return true;
+         }
+     }
+ 
+@@ -547,11 +552,15 @@ public class NetworkInfo implements Parcelable {
+     public void writeToParcel(Parcel dest, int flags) {
+         synchronized (this) {
+             dest.writeInt(mNetworkType);
+-            dest.writeInt(mSubtype);
+-            dest.writeString(mTypeName);
++            // dest.writeInt(mSubtype);
++            dest.writeInt(ConnectivityManager.TYPE_WIFI);
++            // dest.writeString(mTypeName);
++            dest.writeString("WIFI");
+             dest.writeString(mSubtypeName);
+-            dest.writeString(mState.name());
+-            dest.writeString(mDetailedState.name());
++            // dest.writeString(mState.name());
++            // dest.writeString(mDetailedState.name());
++            dest.writeString("CONNECTED");
++            dest.writeString("CONNECTED");
+             dest.writeInt(mIsFailover ? 1 : 0);
+             dest.writeInt(mIsAvailable ? 1 : 0);
+             dest.writeInt(mIsRoaming ? 1 : 0);
+diff --git a/core/java/android/view/ViewRootImpl.java b/core/java/android/view/ViewRootImpl.java
+index 57a01a32..c2e24f6c 100644
+--- a/core/java/android/view/ViewRootImpl.java
++++ b/core/java/android/view/ViewRootImpl.java
+@@ -1150,9 +1150,10 @@ public final class ViewRootImpl implements ViewParent,
+         if (mTranslator != null) return;
+ 
+         // Try to enable hardware acceleration if requested
++		/*
+         final boolean hardwareAccelerated =
+-                (attrs.flags & WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED) != 0;
+-
++                (attrs.flags & WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED) != 0;*/
++        final boolean hardwareAccelerated = true;
+         if (hardwareAccelerated) {
+             if (!ThreadedRenderer.isAvailable()) {
+                 return;
+diff --git a/core/java/android/widget/TextView.java b/core/java/android/widget/TextView.java
+index b2021676..f1922089 100644
+--- a/core/java/android/widget/TextView.java
++++ b/core/java/android/widget/TextView.java
+@@ -8331,7 +8331,7 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
+                         // chance to consume the event.
+                         if (mEditor.mInputContentType.onEditorActionListener != null
+                                 && mEditor.mInputContentType.onEditorActionListener.onEditorAction(
+-                                        this, EditorInfo.IME_NULL, event)) {
++                                        this, EditorInfo.IME_ACTION_SEARCH, event)) { // EditorInfo.IME_NULL
+                             mEditor.mInputContentType.enterDown = true;
+                             // We are consuming the enter key for them.
+                             return KEY_EVENT_HANDLED;
+diff --git a/core/java/com/android/internal/os/BatteryStatsImpl.java b/core/java/com/android/internal/os/BatteryStatsImpl.java
+index 3113004a..8dc48e8d 100644
+--- a/core/java/com/android/internal/os/BatteryStatsImpl.java
++++ b/core/java/com/android/internal/os/BatteryStatsImpl.java
+@@ -11508,7 +11508,7 @@ public class BatteryStatsImpl extends BatteryStats {
+                 numWakelocksSetStale++;
+             }
+         }
+-
++        /*
+         // Record whether we've seen a non-zero time (for debugging b/22716723).
+         if (wakelockStats.isEmpty()) {
+             Slog.wtf(TAG, "All kernel wakelocks had time of zero");
+@@ -11517,7 +11517,7 @@ public class BatteryStatsImpl extends BatteryStats {
+         if (numWakelocksSetStale == mKernelWakelockStats.size()) {
+             Slog.wtf(TAG, "All kernel wakelocks were set stale. new version=" +
+                     wakelockStats.kernelWakelockVersion);
+-        }
++        }*/
+     }
+ 
+     // We use an anonymous class to access these variables,
+diff --git a/core/java/com/android/internal/os/KernelWakelockReader.java b/core/java/com/android/internal/os/KernelWakelockReader.java
+index 8b25e2dc..a3cb6d9e 100644
+--- a/core/java/com/android/internal/os/KernelWakelockReader.java
++++ b/core/java/com/android/internal/os/KernelWakelockReader.java
+@@ -65,6 +65,7 @@ public class KernelWakelockReader {
+      * @return the updated data.
+      */
+     public final KernelWakelockStats readKernelWakelockStats(KernelWakelockStats staleStats) {
++        /*
+         byte[] buffer = new byte[32*1024];
+         int len = 0;
+         boolean wakeup_sources;
+@@ -117,7 +118,8 @@ public class KernelWakelockReader {
+                 }
+             }
+         }
+-        return parseProcWakelocks(buffer, len, wakeup_sources, staleStats);
++        return parseProcWakelocks(buffer, len, wakeup_sources, staleStats);*/
++		return staleStats;
+     }
+ 
+     /**
+diff --git a/core/jni/android/graphics/SurfaceTexture.cpp b/core/jni/android/graphics/SurfaceTexture.cpp
+index 3e464c61..72d94477 100644
+--- a/core/jni/android/graphics/SurfaceTexture.cpp
++++ b/core/jni/android/graphics/SurfaceTexture.cpp
+@@ -328,7 +328,7 @@ static void SurfaceTexture_updateTexImage(JNIEnv* env, jobject thiz)
+         jniThrowException(env, IllegalStateException, "Unable to update texture contents (see "
+                 "logcat for details)");
+     } else if (err < 0) {
+-        jniThrowRuntimeException(env, "Error during updateTexImage (see logcat for details)");
++        //jniThrowRuntimeException(env, "Error during updateTexImage (see logcat for details)");
+     }
+ }
+ 
+diff --git a/core/jni/android_util_Process.cpp b/core/jni/android_util_Process.cpp
+index 2d7069c5..4d8ab183 100644
+--- a/core/jni/android_util_Process.cpp
++++ b/core/jni/android_util_Process.cpp
+@@ -193,12 +193,14 @@ void android_os_Process_setThreadGroupAndCpuset(JNIEnv* env, jobject clazz, int
+     int res = set_sched_policy(tid, sp);
+ 
+     if (res != NO_ERROR) {
+-        signalExceptionForGroupError(env, -res, tid);
++        //signalExceptionForGroupError(env, -res, tid);
++		ALOGE("set_sched_policy err");
+     }
+ 
+     res = set_cpuset_policy(tid, sp);
+     if (res != NO_ERROR) {
+-        signalExceptionForGroupError(env, -res, tid);
++        //signalExceptionForGroupError(env, -res, tid);
++		ALOGE("set_cpuset_policy err");
+     }
+ }
+ 
+@@ -490,6 +492,7 @@ jint android_os_Process_getThreadScheduler(JNIEnv* env, jclass clazz,
+ void android_os_Process_setThreadScheduler(JNIEnv* env, jclass clazz,
+                                               jint tid, jint policy, jint pri)
+ {
++/*
+ // linux has sched_setscheduler(), others don't.
+ #if defined(__linux__)
+     struct sched_param param;
+@@ -501,11 +504,13 @@ void android_os_Process_setThreadScheduler(JNIEnv* env, jclass clazz,
+ #else
+     signalExceptionForPriorityError(env, ENOSYS, tid);
+ #endif
++*/
+ }
+ 
+ void android_os_Process_setThreadPriority(JNIEnv* env, jobject clazz,
+                                               jint pid, jint pri)
+ {
++/*
+ #if GUARD_THREAD_PRIORITY
+     // if we're putting the current thread into the background, check the TLS
+     // to make sure this thread isn't guarded.  If it is, raise an exception.
+@@ -531,7 +536,7 @@ void android_os_Process_setThreadPriority(JNIEnv* env, jobject clazz,
+     }
+ 
+     //ALOGI("Setting priority of %" PRId32 ": %" PRId32 ", getpriority returns %d\n",
+-    //     pid, pri, getpriority(PRIO_PROCESS, pid));
++    //     pid, pri, getpriority(PRIO_PROCESS, pid));*/
+ }
+ 
+ void android_os_Process_setCallingThreadPriority(JNIEnv* env, jobject clazz,
+@@ -555,6 +560,7 @@ jint android_os_Process_getThreadPriority(JNIEnv* env, jobject clazz,
+ jboolean android_os_Process_setSwappiness(JNIEnv *env, jobject clazz,
+                                           jint pid, jboolean is_increased)
+ {
++	/*
+     char text[64];
+ 
+     if (is_increased) {
+@@ -574,7 +580,7 @@ jboolean android_os_Process_setSwappiness(JNIEnv *env, jobject clazz,
+         write(fd, text, strlen(text));
+         close(fd);
+     }
+-
++	*/
+     return true;
+ }
+ 
+diff --git a/core/jni/android_view_ThreadedRenderer.cpp b/core/jni/android_view_ThreadedRenderer.cpp
+index f7e9b24e..8a479f8f 100644
+--- a/core/jni/android_view_ThreadedRenderer.cpp
++++ b/core/jni/android_view_ThreadedRenderer.cpp
+@@ -940,8 +940,8 @@ static jobject android_view_ThreadedRenderer_createHardwareBitmapFromRenderNode(
+     sp<IGraphicBufferProducer> producer;
+     sp<IGraphicBufferConsumer> rawConsumer;
+     BufferQueue::createBufferQueue(&producer, &rawConsumer);
+-    // We only need 1 buffer but some drivers have bugs so workaround it by setting max count to 2
+-    rawConsumer->setMaxBufferCount(2);
++    // need 3 buffer, we cannot get graphicbuffer when max buffer is 2
++    rawConsumer->setMaxBufferCount(3);
+     sp<BufferItemConsumer> consumer = new BufferItemConsumer(rawConsumer,
+             GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_NEVER);
+     consumer->setDefaultBufferSize(width, height);
+diff --git a/core/jni/com_android_internal_os_Zygote.cpp b/core/jni/com_android_internal_os_Zygote.cpp
+index d03ef8a5..82827a05 100644
+--- a/core/jni/com_android_internal_os_Zygote.cpp
++++ b/core/jni/com_android_internal_os_Zygote.cpp
+@@ -955,7 +955,7 @@ static pid_t ForkCommon(JNIEnv* env, bool is_system_server,
+ 
+     // Re-open all remaining open file descriptors so that they aren't shared
+     // with the zygote across a fork.
+-    gOpenFdTable->ReopenOrDetach(fail_fn);
++    //gOpenFdTable->ReopenOrDetach(fail_fn);
+ 
+     // Turn fdsan back on.
+     android_fdsan_set_error_level(fdsan_error_level);
+diff --git a/core/jni/fd_utils.cpp b/core/jni/fd_utils.cpp
+index fa5f9314..e68cc2cc 100644
+--- a/core/jni/fd_utils.cpp
++++ b/core/jni/fd_utils.cpp
+@@ -47,6 +47,7 @@ static const char* kPathWhitelist[] = {
+   "/dev/urandom",
+   "/dev/ion",
+   "/dev/dri/renderD129", // Fixes b/31172436
++  "/dev/pts/0",
+ };
+ 
+ static const char kFdPath[] = "/proc/self/fd";
+@@ -139,7 +140,7 @@ bool FileDescriptorWhitelist::IsAllowed(const std::string& path) const {
+     return true;
+   }
+ 
+-  return false;
++  return true;
+ }
+ 
+ FileDescriptorWhitelist::FileDescriptorWhitelist()
+diff --git a/core/res/res/values/config.xml b/core/res/res/values/config.xml
+index f005c364..c40c857a 100644
+--- a/core/res/res/values/config.xml
++++ b/core/res/res/values/config.xml
+@@ -3298,7 +3298,7 @@
+          PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT feature to your device specification.
+          The duplication is necessary, because this information is used before the features are
+          available to the system.-->
+-    <bool name="config_freeformWindowManagement">false</bool>
++    <bool name="config_freeformWindowManagement">true</bool>
+ 
+     <!-- If set, this will force all windows to draw the status bar background, including the apps
+          that have not requested doing so (via the WindowManager.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+diff --git a/services/core/java/com/android/server/AlarmManagerService.java b/services/core/java/com/android/server/AlarmManagerService.java
+index 386b49eb..307cb6cf 100644
+--- a/services/core/java/com/android/server/AlarmManagerService.java
++++ b/services/core/java/com/android/server/AlarmManagerService.java
+@@ -4175,7 +4175,7 @@ class AlarmManagerService extends SystemService {
+                         Alarm alarm = triggerList.get(i);
+                         try {
+                             alarm.operation.send();
+-                        } catch (PendingIntent.CanceledException e) {
++                        } catch (Exception e) {
+                             if (alarm.repeatInterval > 0) {
+                                 // This IntentSender is no longer valid, but this
+                                 // is a repeating alarm, so toss the hoser.
+diff --git a/services/core/java/com/android/server/BatteryService.java b/services/core/java/com/android/server/BatteryService.java
+index 6a9f5b65..4d742984 100644
+--- a/services/core/java/com/android/server/BatteryService.java
++++ b/services/core/java/com/android/server/BatteryService.java
+@@ -342,19 +342,7 @@ public final class BatteryService extends SystemService {
+     }
+ 
+     private boolean shouldSendBatteryLowLocked() {
+-        final boolean plugged = mPlugType != BATTERY_PLUGGED_NONE;
+-        final boolean oldPlugged = mLastPlugType != BATTERY_PLUGGED_NONE;
+-
+-        /* The ACTION_BATTERY_LOW broadcast is sent in these situations:
+-         * - is just un-plugged (previously was plugged) and battery level is
+-         *   less than or equal to WARNING, or
+-         * - is not plugged and battery level falls to WARNING boundary
+-         *   (becomes <= mLowBatteryWarningLevel).
+-         */
+-        return !plugged
+-                && mHealthInfo.batteryStatus != BatteryManager.BATTERY_STATUS_UNKNOWN
+-                && mHealthInfo.batteryLevel <= mLowBatteryWarningLevel
+-                && (oldPlugged || mLastBatteryLevel > mLowBatteryWarningLevel);
++        return false;
+     }
+ 
+     private boolean shouldShutdownLocked() {
+@@ -371,7 +359,8 @@ public final class BatteryService extends SystemService {
+         // - If battery present and state == unknown, this is an unexpected error state.
+         // - If level <= 0 and state == full, this is also an unexpected state
+         // - All other states (NOT_CHARGING, DISCHARGING) means it is not charging.
+-        return mHealthInfo.batteryStatus != BatteryManager.BATTERY_STATUS_CHARGING;
++        // return mHealthInfo.batteryStatus != BatteryManager.BATTERY_STATUS_CHARGING;
++        return false;
+     }
+ 
+     private void shutdownIfNoPowerLocked() {
+@@ -456,6 +445,7 @@ public final class BatteryService extends SystemService {
+     }
+ 
+     private void processValuesLocked(boolean force) {
++        Slog.d(TAG, "processValuesLocked");
+         boolean logOutlier = false;
+         long dischargeDuration = 0;
+ 
+@@ -489,9 +479,10 @@ public final class BatteryService extends SystemService {
+             // Should never happen.
+         }
+ 
+-        shutdownIfNoPowerLocked();
+-        shutdownIfOverTempLocked();
++        // shutdownIfNoPowerLocked();
++        // shutdownIfOverTempLocked();
+ 
++        force = false;
+         if (force || (mHealthInfo.batteryStatus != mLastBatteryStatus ||
+                 mHealthInfo.batteryHealth != mLastBatteryHealth ||
+                 mHealthInfo.batteryPresent != mLastBatteryPresent ||
+@@ -688,7 +679,8 @@ public final class BatteryService extends SystemService {
+         intent.putExtra(BatteryManager.EXTRA_STATUS, mHealthInfo.batteryStatus);
+         intent.putExtra(BatteryManager.EXTRA_HEALTH, mHealthInfo.batteryHealth);
+         intent.putExtra(BatteryManager.EXTRA_PRESENT, mHealthInfo.batteryPresent);
+-        intent.putExtra(BatteryManager.EXTRA_LEVEL, mHealthInfo.batteryLevel);
++        //intent.putExtra(BatteryManager.EXTRA_LEVEL, mHealthInfo.batteryLevel);
++		intent.putExtra(BatteryManager.EXTRA_LEVEL, 100);
+         intent.putExtra(BatteryManager.EXTRA_BATTERY_LOW, mSentLowBatteryBroadcast);
+         intent.putExtra(BatteryManager.EXTRA_SCALE, BATTERY_SCALE);
+         intent.putExtra(BatteryManager.EXTRA_ICON_SMALL, icon);
+@@ -1013,7 +1005,8 @@ public final class BatteryService extends SystemService {
+                 pw.println("  status: " + mHealthInfo.batteryStatus);
+                 pw.println("  health: " + mHealthInfo.batteryHealth);
+                 pw.println("  present: " + mHealthInfo.batteryPresent);
+-                pw.println("  level: " + mHealthInfo.batteryLevel);
++                //pw.println("  level: " + mHealthInfo.batteryLevel);
++				pw.println("  level: " + 100);
+                 pw.println("  scale: " + BATTERY_SCALE);
+                 pw.println("  voltage: " + mHealthInfo.batteryVoltage);
+                 pw.println("  temperature: " + mHealthInfo.batteryTemperature);
+diff --git a/services/core/java/com/android/server/ConnectivityService.java b/services/core/java/com/android/server/ConnectivityService.java
+index e5fddef9..c18cc273 100644
+--- a/services/core/java/com/android/server/ConnectivityService.java
++++ b/services/core/java/com/android/server/ConnectivityService.java
+@@ -1319,12 +1319,15 @@ public class ConnectivityService extends IConnectivityManager.Stub
+      */
+     @Override
+     public NetworkInfo getActiveNetworkInfo() {
++		/*
+         enforceAccessPermission();
+         final int uid = Binder.getCallingUid();
+         final NetworkState state = getUnfilteredActiveNetworkState(uid);
+         filterNetworkStateForUid(state, uid, false);
+         maybeLogBlockedNetworkInfo(state.networkInfo, uid);
+-        return state.networkInfo;
++        return state.networkInfo;*/
++		NetworkInfo info = new NetworkInfo(ConnectivityManager.TYPE_WIFI, 0, "WIFI", "");
++		return info;
+     }
+ 
+     @Override
+diff --git a/services/core/java/com/android/server/Watchdog.java b/services/core/java/com/android/server/Watchdog.java
+index 5b9c78f6..4abdc430 100644
+--- a/services/core/java/com/android/server/Watchdog.java
++++ b/services/core/java/com/android/server/Watchdog.java
+@@ -89,7 +89,7 @@ public class Watchdog extends Thread {
+         "/system/bin/drmserver",
+         "/system/bin/mediadrmserver",
+         "/system/bin/mediaserver",
+-        "/system/bin/sdcard",
++        // "/system/bin/sdcard", // dump will make sdcard crash
+         "/system/bin/surfaceflinger",
+         "/system/bin/vold",
+         "media.extractor", // system/bin/mediaextractor
+diff --git a/services/core/java/com/android/server/am/ActivityManagerShellCommand.java b/services/core/java/com/android/server/am/ActivityManagerShellCommand.java
+index 9f3a7e93..6d6d3007 100644
+--- a/services/core/java/com/android/server/am/ActivityManagerShellCommand.java
++++ b/services/core/java/com/android/server/am/ActivityManagerShellCommand.java
+@@ -148,6 +148,7 @@ final class ActivityManagerShellCommand extends ShellCommand {
+     private int mTaskId;
+     private boolean mIsTaskOverlay;
+     private boolean mIsLockTask;
++    private Rect mLaunchBounds;
+ 
+     final boolean mDumping;
+ 
+@@ -313,6 +314,7 @@ final class ActivityManagerShellCommand extends ShellCommand {
+         mTaskId = INVALID_TASK_ID;
+         mIsTaskOverlay = false;
+         mIsLockTask = false;
++        mLaunchBounds = null;
+ 
+         return Intent.parseCommandArgs(this, new Intent.CommandOptionHandler() {
+             @Override
+@@ -371,7 +373,9 @@ final class ActivityManagerShellCommand extends ShellCommand {
+                     mIsTaskOverlay = true;
+                 } else if (opt.equals("--lock-task")) {
+                     mIsLockTask = true;
+-                } else {
++                } else if (opt.equals("--launch-bounds")) {
++                    mLaunchBounds = getBounds();
++				}else {
+                     return false;
+                 }
+                 return true;
+@@ -503,6 +507,11 @@ final class ActivityManagerShellCommand extends ShellCommand {
+                     options.setTaskOverlay(true, true /* canResume */);
+                 }
+             }
++            if (mLaunchBounds != null) {
++			    if (options == null)
++                    options = ActivityOptions.makeBasic();
++                    options.setLaunchBounds(mLaunchBounds);
++            }
+             if (mIsLockTask) {
+                 if (options == null) {
+                     options = ActivityOptions.makeBasic();
+diff --git a/services/core/java/com/android/server/camera/CameraServiceProxy.java b/services/core/java/com/android/server/camera/CameraServiceProxy.java
+index b46f0348..a9a9091e 100644
+--- a/services/core/java/com/android/server/camera/CameraServiceProxy.java
++++ b/services/core/java/com/android/server/camera/CameraServiceProxy.java
+@@ -394,29 +394,6 @@ public class CameraServiceProxy extends SystemService
+     private boolean notifyCameraserverLocked(int eventType, Set<Integer> updatedUserHandles) {
+         // Forward the user switch event to the native camera service running in the cameraserver
+         // process.
+-        if (mCameraServiceRaw == null) {
+-            IBinder cameraServiceBinder = getBinderService(CAMERA_SERVICE_BINDER_NAME);
+-            if (cameraServiceBinder == null) {
+-                Slog.w(TAG, "Could not notify cameraserver, camera service not available.");
+-                return false; // Camera service not active, cannot evict user clients.
+-            }
+-            try {
+-                cameraServiceBinder.linkToDeath(this, /*flags*/ 0);
+-            } catch (RemoteException e) {
+-                Slog.w(TAG, "Could not link to death of native camera service");
+-                return false;
+-            }
+-
+-            mCameraServiceRaw = ICameraService.Stub.asInterface(cameraServiceBinder);
+-        }
+-
+-        try {
+-            mCameraServiceRaw.notifySystemEvent(eventType, toArray(updatedUserHandles));
+-        } catch (RemoteException e) {
+-            Slog.w(TAG, "Could not notify cameraserver, remote exception: " + e);
+-            // Not much we can do if camera service is dead.
+-            return false;
+-        }
+         return true;
+     }
+ 
+diff --git a/services/core/java/com/android/server/net/IpConfigStore.java b/services/core/java/com/android/server/net/IpConfigStore.java
+index e3e02e32..79d8d9b6 100644
+--- a/services/core/java/com/android/server/net/IpConfigStore.java
++++ b/services/core/java/com/android/server/net/IpConfigStore.java
+@@ -27,6 +27,7 @@ import android.net.StaticIpConfiguration;
+ import android.util.ArrayMap;
+ import android.util.Log;
+ import android.util.SparseArray;
++import android.os.SystemProperties;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
+ 
+@@ -40,6 +41,9 @@ import java.io.IOException;
+ import java.io.InputStream;
+ import java.net.Inet4Address;
+ import java.net.InetAddress;
++import dalvik.system.VMRuntime;
++import java.io.BufferedReader;
++import java.io.InputStreamReader;
+ 
+ public class IpConfigStore {
+     private static final String TAG = "IpConfigStore";
+@@ -210,6 +214,71 @@ public class IpConfigStore {
+         }
+         return readIpConfigurations(bufferedInputStream);
+     }
++    public static ArrayMap<String, IpConfiguration> readIpAndProxyFromIfconfig() {
++        ArrayMap<String, IpConfiguration> networks = new ArrayMap<>();
++        StaticIpConfiguration staticIpConfiguration = new StaticIpConfiguration();
++        Runtime rt = Runtime.getRuntime();
++        BufferedReader ip_reader = null;
++        BufferedReader gateway_reader = null;
++        try {
++            Process ip_proc = rt.exec("ifconfig eth0");
++            ip_reader = new BufferedReader(new InputStreamReader(ip_proc.getInputStream()));
++            String line;
++            while((line = ip_reader.readLine()) != null) {
++                line = line.trim();
++                if(line.startsWith("inet addr")) {
++                    int start = line.indexOf(":");
++                    int end = line.indexOf(" ", start);
++                    String staticIP = line.substring(start+1, end);
++                    LinkAddress linkAddr = new LinkAddress(
++                        NetworkUtils.numericToInetAddress(staticIP),24);
++                    if (linkAddr.getAddress() instanceof Inet4Address &&
++                        staticIpConfiguration.ipAddress == null)  {
++                        staticIpConfiguration.ipAddress = linkAddr;
++                        break;
++                    }
++                }
++            }
++            Process gateway_proc = rt.exec("ip route show");
++            gateway_reader = new BufferedReader(new InputStreamReader(gateway_proc.getInputStream()));
++            while((line = gateway_reader.readLine()) != null) {
++                line = line.trim();
++                if(line.startsWith("default via")) {
++                    String[] gateways = line.split(" ");
++                    InetAddress gateway = NetworkUtils.numericToInetAddress(gateways[2]);
++                    if (staticIpConfiguration.gateway == null) {
++                        staticIpConfiguration.gateway = gateway;
++                        break;
++                    }
++                }
++            }
++            for (int i=1; i<=4; i++) {
++                String netDns = SystemProperties.get("net.dns" + i);
++                if (!"".equals(netDns) && null != netDns) {
++                    staticIpConfiguration.dnsServers.add(
++                        NetworkUtils.numericToInetAddress(netDns));
++                }
++            }
++            IpConfiguration config = new IpConfiguration();
++            config.staticIpConfiguration = staticIpConfiguration;
++            config.ipAssignment = IpAssignment.STATIC;
++            networks.put(String.valueOf(0), config);
++        } catch(IOException e) {
++            loge("IOException error");
++        } finally {
++            if (ip_reader != null) {
++                try {
++                    ip_reader.close();
++                } catch(IOException e) {}
++            }
++            if (gateway_reader != null) {
++                try {
++                    gateway_reader.close();
++                } catch(IOException e) {}
++            }
++        }
++        return networks;
++    }
+ 
+     /** @Deprecated use {@link #readIpConfigurations(String)} */
+     @Deprecated
+diff --git a/services/core/java/com/android/server/net/NetworkPolicyManagerService.java b/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+index 9011bc0a..b26b8ef0 100644
+--- a/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
++++ b/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+@@ -4077,7 +4077,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
+ 
+         if (packages != null) {
+             for (String packageName : packages) {
+-                if (!mUsageStats.isAppIdle(packageName, uid, userId)) {
++                if ((mUsageStats != null) && (!mUsageStats.isAppIdle(packageName, uid, userId))) {
+                     return false;
+                 }
+             }
+diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
+index d9e4db29..b8fc2dbe 100644
+--- a/services/core/java/com/android/server/pm/Settings.java
++++ b/services/core/java/com/android/server/pm/Settings.java
+@@ -2631,19 +2631,19 @@ public final class Settings {
+ 
+     void writePackageListLPr(int creatingUserId) {
+         String filename = mPackageListFilename.getAbsolutePath();
++		/*
+         String ctx = SELinux.fileSelabelLookup(filename);
+         if (ctx == null) {
+             Slog.wtf(TAG, "Failed to get SELinux context for " +
+                 mPackageListFilename.getAbsolutePath());
+         }
+-
+         if (!SELinux.setFSCreateContext(ctx)) {
+             Slog.wtf(TAG, "Failed to set packages.list SELinux context");
+-        }
++        }*/
+         try {
+             writePackageListLPrInternal(creatingUserId);
+         } finally {
+-            SELinux.setFSCreateContext(null);
++            //SELinux.setFSCreateContext(null);
+         }
+     }
+ 
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index 1cb7880f..f6b5bb8b 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -1013,8 +1013,9 @@ public final class PowerManagerService extends SystemService
+         mSleepTimeoutSetting = Settings.Secure.getIntForUser(resolver,
+                 Settings.Secure.SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT,
+                 UserHandle.USER_CURRENT);
+-        mStayOnWhilePluggedInSetting = Settings.Global.getInt(resolver,
+-                Settings.Global.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC);
++        //mStayOnWhilePluggedInSetting = Settings.Global.getInt(resolver,
++                //Settings.Global.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC);
++		mStayOnWhilePluggedInSetting = 1;
+         mTheaterModeEnabled = Settings.Global.getInt(mContext.getContentResolver(),
+                 Settings.Global.THEATER_MODE_ON, 0) == 1;
+         mAlwaysOnEnabled = mAmbientDisplayConfiguration.alwaysOnEnabled(UserHandle.USER_CURRENT);
+@@ -1855,9 +1856,12 @@ public final class PowerManagerService extends SystemService
+     private void updateStayOnLocked(int dirty) {
+         if ((dirty & (DIRTY_BATTERY_STATE | DIRTY_SETTINGS)) != 0) {
+             final boolean wasStayOn = mStayOn;
++			/*
+             if (mStayOnWhilePluggedInSetting != 0
+                     && !isMaximumScreenOffTimeoutFromDeviceAdminEnforcedLocked()) {
+-                mStayOn = mBatteryManagerInternal.isPowered(mStayOnWhilePluggedInSetting);
++                mStayOn = mBatteryManagerInternal.isPowered(mStayOnWhilePluggedInSetting);*/
++		    if (mStayOnWhilePluggedInSetting != 0) {
++				mStayOn = true;
+             } else {
+                 mStayOn = false;
+             }
+@@ -2845,7 +2849,7 @@ public final class PowerManagerService extends SystemService
+                 // If we're stuck in a really low-level reboot loop, and a
+                 // rescue party is trying to prompt the user for a factory data
+                 // reset, we must GET TO DA CHOPPA!
+-                PowerManagerService.lowLevelReboot(reason);
++                // PowerManagerService.lowLevelReboot(reason);
+             } else {
+                 throw new IllegalStateException("Too early to call shutdown() or reboot()");
+             }
+@@ -2856,11 +2860,11 @@ public final class PowerManagerService extends SystemService
+             public void run() {
+                 synchronized (this) {
+                     if (haltMode == HALT_MODE_REBOOT_SAFE_MODE) {
+-                        ShutdownThread.rebootSafeMode(getUiContext(), confirm);
++                        // ShutdownThread.rebootSafeMode(getUiContext(), confirm);
+                     } else if (haltMode == HALT_MODE_REBOOT) {
+-                        ShutdownThread.reboot(getUiContext(), reason, confirm);
++                        // ShutdownThread.reboot(getUiContext(), reason, confirm);
+                     } else {
+-                        ShutdownThread.shutdown(getUiContext(), reason, confirm);
++                        // ShutdownThread.shutdown(getUiContext(), reason, confirm);
+                     }
+                 }
+             }
+diff --git a/services/core/java/com/android/server/wm/ImmersiveModeConfirmation.java b/services/core/java/com/android/server/wm/ImmersiveModeConfirmation.java
+index d774dc3f..b9f4b21c 100644
+--- a/services/core/java/com/android/server/wm/ImmersiveModeConfirmation.java
++++ b/services/core/java/com/android/server/wm/ImmersiveModeConfirmation.java
+@@ -390,10 +390,10 @@ public class ImmersiveModeConfirmation {
+         public void handleMessage(Message msg) {
+             switch(msg.what) {
+                 case SHOW:
+-                    handleShow();
++                    //handleShow();
+                     break;
+                 case HIDE:
+-                    handleHide();
++                    //handleHide();
+                     break;
+             }
+         }
+diff --git a/services/core/java/com/android/server/wm/WindowStateAnimator.java b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+index 3505afb5..6b27d1e6 100644
+--- a/services/core/java/com/android/server/wm/WindowStateAnimator.java
++++ b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+@@ -483,10 +483,18 @@ class WindowStateAnimator {
+                     && !w.isDragResizing()) {
+                 flags |= SurfaceControl.OPAQUE;
+             }
+-
++            /*
+             mSurfaceController = new WindowSurfaceController(mSession.mSurfaceSession,
+                     attrs.getTitle().toString(), width, height, format, flags, this,
+-                    windowType, ownerUid);
++                    windowType, ownerUid);*/
++            String name = attrs.getTitle().toString();
++            Task task = mWin.getTask();
++            if (task != null) {
++                name = String.format("org.anbox.surface.%d", task.mTaskId);
++            }
++            mSurfaceController = new WindowSurfaceController(mSession.mSurfaceSession,
++                    name, width, height, format, flags, this, windowType, ownerUid);
++
+             mSurfaceController.setColorSpaceAgnostic((attrs.privateFlags
+                     & WindowManager.LayoutParams.PRIVATE_FLAG_COLOR_SPACE_AGNOSTIC) != 0);
+ 
+diff --git a/services/core/jni/com_android_server_AlarmManagerService.cpp b/services/core/jni/com_android_server_AlarmManagerService.cpp
+index e79612fb..a2a96949 100644
+--- a/services/core/jni/com_android_server_AlarmManagerService.cpp
++++ b/services/core/jni/com_android_server_AlarmManagerService.cpp
+@@ -68,6 +68,15 @@ static const clockid_t android_alarm_to_clockid[N_ANDROID_TIMERFDS] = {
+     CLOCK_MONOTONIC,
+     CLOCK_REALTIME,
+ };
++/*
++    CLOCK_REALTIME,
++    CLOCK_BOOTTIME,
++    CLOCK_REALTIME,
++    CLOCK_REALTIME.
++    CLOCK_MONOTONIC,
++    CLOCK_REALTIME,
++
++*/
+ 
+ typedef std::array<int, N_ANDROID_TIMERFDS> TimerFds;
+ 
+@@ -115,7 +124,6 @@ int AlarmImpl::set(int type, struct timespec *ts)
+     struct itimerspec spec;
+     memset(&spec, 0, sizeof(spec));
+     memcpy(&spec.it_value, ts, sizeof(spec.it_value));
+-
+     return timerfd_settime(fds[type], TFD_TIMER_ABSTIME, &spec, NULL);
+ }
+ 
+@@ -125,7 +133,6 @@ int AlarmImpl::getTime(int type, struct itimerspec *spec)
+         errno = EINVAL;
+         return -1;
+     }
+-
+     return timerfd_gettime(fds[type], spec);
+ }
+ 
+diff --git a/services/net/java/android/net/shared/ProvisioningConfiguration.java b/services/net/java/android/net/shared/ProvisioningConfiguration.java
+index 6f9c2949..b6cb0677 100644
+--- a/services/net/java/android/net/shared/ProvisioningConfiguration.java
++++ b/services/net/java/android/net/shared/ProvisioningConfiguration.java
+@@ -193,7 +193,7 @@ public class ProvisioningConfiguration {
+     }
+ 
+     public boolean mEnableIPv4 = true;
+-    public boolean mEnableIPv6 = true;
++    public boolean mEnableIPv6 = false;
+     public boolean mUsingMultinetworkPolicyTracker = true;
+     public boolean mUsingIpReachabilityMonitor = true;
+     public int mRequestedPreDhcpActionMs;
+@@ -210,6 +210,7 @@ public class ProvisioningConfiguration {
+     public ProvisioningConfiguration(ProvisioningConfiguration other) {
+         mEnableIPv4 = other.mEnableIPv4;
+         mEnableIPv6 = other.mEnableIPv6;
++		mEnableIPv6 = false;
+         mUsingMultinetworkPolicyTracker = other.mUsingMultinetworkPolicyTracker;
+         mUsingIpReachabilityMonitor = other.mUsingIpReachabilityMonitor;
+         mRequestedPreDhcpActionMs = other.mRequestedPreDhcpActionMs;
+@@ -231,6 +232,7 @@ public class ProvisioningConfiguration {
+         final ProvisioningConfigurationParcelable p = new ProvisioningConfigurationParcelable();
+         p.enableIPv4 = mEnableIPv4;
+         p.enableIPv6 = mEnableIPv6;
++		p.enableIPv6 = false;
+         p.usingMultinetworkPolicyTracker = mUsingMultinetworkPolicyTracker;
+         p.usingIpReachabilityMonitor = mUsingIpReachabilityMonitor;
+         p.requestedPreDhcpActionMs = mRequestedPreDhcpActionMs;
+@@ -255,6 +257,7 @@ public class ProvisioningConfiguration {
+         final ProvisioningConfiguration config = new ProvisioningConfiguration();
+         config.mEnableIPv4 = p.enableIPv4;
+         config.mEnableIPv6 = p.enableIPv6;
++		config.mEnableIPv6 = false;
+         config.mUsingMultinetworkPolicyTracker = p.usingMultinetworkPolicyTracker;
+         config.mUsingIpReachabilityMonitor = p.usingIpReachabilityMonitor;
+         config.mRequestedPreDhcpActionMs = p.requestedPreDhcpActionMs;
+diff --git a/telephony/java/android/telephony/TelephonyManager.java b/telephony/java/android/telephony/TelephonyManager.java
+index 8a7125f7..3b9be195 100644
+--- a/telephony/java/android/telephony/TelephonyManager.java
++++ b/telephony/java/android/telephony/TelephonyManager.java
+@@ -96,6 +96,7 @@ import com.android.internal.telephony.TelephonyProperties;
+ import dalvik.system.VMRuntime;
+ 
+ import java.io.FileInputStream;
++import java.io.FileOutputStream;
+ import java.io.IOException;
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+@@ -1582,6 +1583,13 @@ public class TelephonyManager {
+             return null;
+         }
+     }
++    private String readImeiFile() throws IOException {
++        return SystemProperties.get("sys.prop.writeimei", "");
++    }
++
++    private String readImsiFile() throws IOException {
++        return SystemProperties.get("sys.prop.writeimsi", "");
++    }
+ 
+     /**
+      * Returns the unique device ID, for example, the IMEI for GSM and the MEID
+@@ -1613,11 +1621,13 @@ public class TelephonyManager {
+     @RequiresPermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
+     public String getDeviceId() {
+         try {
++			/*
+             ITelephony telephony = getITelephony();
+             if (telephony == null)
+                 return null;
+-            return telephony.getDeviceId(mContext.getOpPackageName());
+-        } catch (RemoteException ex) {
++            return telephony.getDeviceId(mContext.getOpPackageName());*/
++			return readImeiFile();
++        } catch (IOException ex) {
+             return null;
+         } catch (NullPointerException ex) {
+             return null;
+@@ -1657,11 +1667,13 @@ public class TelephonyManager {
+     public String getDeviceId(int slotIndex) {
+         // FIXME this assumes phoneId == slotIndex
+         try {
++			/*
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+                 return null;
+-            return info.getDeviceIdForPhone(slotIndex, mContext.getOpPackageName());
+-        } catch (RemoteException ex) {
++            return info.getDeviceIdForPhone(slotIndex, mContext.getOpPackageName());*/
++			return readImeiFile();
++        } catch (IOException ex) {
+             return null;
+         } catch (NullPointerException ex) {
+             return null;
+@@ -1714,12 +1726,13 @@ public class TelephonyManager {
+     @SuppressAutoDoc // No support for device / profile owner or carrier privileges (b/72967236).
+     @RequiresPermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
+     public String getImei(int slotIndex) {
+-        ITelephony telephony = getITelephony();
+-        if (telephony == null) return null;
++        //ITelephony telephony = getITelephony();
++        //if (telephony == null) return null;
+ 
+         try {
+-            return telephony.getImeiForSlot(slotIndex, getOpPackageName());
+-        } catch (RemoteException ex) {
++            //return telephony.getImeiForSlot(slotIndex, getOpPackageName());
++			return readImeiFile();
++        } catch (IOException ex) {
+             return null;
+         } catch (NullPointerException ex) {
+             return null;
+@@ -2300,9 +2313,10 @@ public class TelephonyManager {
+      */
+     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P)
+     public String getNetworkOperatorName(int subId) {
+-        int phoneId = SubscriptionManager.getPhoneId(subId);
+-        return getTelephonyProperty(phoneId, TelephonyProperties.PROPERTY_OPERATOR_ALPHA, "");
+-    }
++        //int phoneId = SubscriptionManager.getPhoneId(subId);
++        //return getTelephonyProperty(phoneId, TelephonyProperties.PROPERTY_OPERATOR_ALPHA, "");
++        return SystemProperties.get("gsm.operator.alphacph", "CMCC");
++	}
+ 
+     /**
+      * Returns the numeric name (MCC+MNC) of current registered operator.
+@@ -2328,9 +2342,10 @@ public class TelephonyManager {
+      */
+     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P)
+     public String getNetworkOperator(int subId) {
+-        int phoneId = SubscriptionManager.getPhoneId(subId);
+-        return getNetworkOperatorForPhone(phoneId);
+-     }
++        //int phoneId = SubscriptionManager.getPhoneId(subId);
++        //return getNetworkOperatorForPhone(phoneId);
++        return SystemProperties.get("gsm.operator.numericcph", "310260");
++	}
+ 
+     /**
+      * Returns the numeric name (MCC+MNC) of current registered operator
+@@ -2457,13 +2472,15 @@ public class TelephonyManager {
+     /** {@hide} */
+     @UnsupportedAppUsage
+     public String getNetworkCountryIsoForPhone(int phoneId) {
++	    /*
+         try {
+             ITelephony telephony = getITelephony();
+             if (telephony == null) return "";
+             return telephony.getNetworkCountryIsoForPhone(phoneId);
+         } catch (RemoteException ex) {
+             return "";
+-        }
++        }*/
++		return SystemProperties.get("gsm.operator.iso-countrycph", "cn");
+     }
+ 
+     /*
+@@ -3229,8 +3246,10 @@ public class TelephonyManager {
+      */
+     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P)
+     public String getSimOperatorNumericForPhone(int phoneId) {
++		/*
+         return getTelephonyProperty(phoneId,
+-                TelephonyProperties.PROPERTY_ICC_OPERATOR_NUMERIC, "");
++                TelephonyProperties.PROPERTY_ICC_OPERATOR_NUMERIC, "");*/
++		return SystemProperties.get("gsm.sim.operator.numericcph", "310260");
+     }
+ 
+     /**
+@@ -3267,8 +3286,10 @@ public class TelephonyManager {
+      */
+     @UnsupportedAppUsage
+     public String getSimOperatorNameForPhone(int phoneId) {
++		 /*
+          return getTelephonyProperty(phoneId,
+-                TelephonyProperties.PROPERTY_ICC_OPERATOR_ALPHA, "");
++                TelephonyProperties.PROPERTY_ICC_OPERATOR_ALPHA, "");*/
++		 return SystemProperties.get("gsm.sim.operator.alphacph", "CMCC");
+     }
+ 
+     /**
+@@ -3297,8 +3318,10 @@ public class TelephonyManager {
+      */
+     @UnsupportedAppUsage
+     public String getSimCountryIsoForPhone(int phoneId) {
++		/*
+         return getTelephonyProperty(phoneId,
+-                TelephonyProperties.PROPERTY_ICC_OPERATOR_ISO_COUNTRY, "");
++                TelephonyProperties.PROPERTY_ICC_OPERATOR_ISO_COUNTRY, "");*/
++		return SystemProperties.get("gsm.sim.operator.iso-countrycph", "cn");
+     }
+ 
+     /**
+@@ -3357,6 +3380,7 @@ public class TelephonyManager {
+     @RequiresPermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
+     @UnsupportedAppUsage
+     public String getSimSerialNumber(int subId) {
++		/*
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -3367,7 +3391,12 @@ public class TelephonyManager {
+         } catch (NullPointerException ex) {
+             // This could happen before phone restarts due to crashing
+             return null;
+-        }
++        }*/
++		IPhoneSubInfo info = getSubscriberInfo();
++        if (info == null)
++            return null;
++       return SystemProperties.get("sys.prop.writesimserial", "");
++
+     }
+ 
+     /**
+@@ -3629,6 +3658,7 @@ public class TelephonyManager {
+     @RequiresPermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
+     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P)
+     public String getSubscriberId(int subId) {
++		/*
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -3639,7 +3669,17 @@ public class TelephonyManager {
+         } catch (NullPointerException ex) {
+             // This could happen before phone restarts due to crashing
+             return null;
+-        }
++        }*/
++        try {
++            return readImsiFile();
++        } catch (IOException e){
++            e.printStackTrace();
++            return null;
++        }catch (NullPointerException ex) {
++        // This could happen before phone restarts due to crashing
++            return null;
++		}
++
+     }
+ 
+     /**
+@@ -3871,6 +3911,7 @@ public class TelephonyManager {
+         if (number != null) {
+             return number;
+         }
++		/*
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -3881,7 +3922,11 @@ public class TelephonyManager {
+         } catch (NullPointerException ex) {
+             // This could happen before phone restarts due to crashing
+             return null;
+-        }
++        }*/
++        IPhoneSubInfo info = getSubscriberInfo();
++        if (info == null)
++            return null;
++        return SystemProperties.get("sys.prop.writephonenum", "");
+     }
+ 
+     /**
+diff --git a/wifi/java/android/net/wifi/WifiInfo.java b/wifi/java/android/net/wifi/WifiInfo.java
+index 0b557942..a50fb259 100644
+--- a/wifi/java/android/net/wifi/WifiInfo.java
++++ b/wifi/java/android/net/wifi/WifiInfo.java
+@@ -320,7 +320,8 @@ public class WifiInfo implements Parcelable {
+                 return (hex != null) ? hex : WifiSsid.NONE;
+             }
+         }
+-        return WifiSsid.NONE;
++        //return WifiSsid.NONE;
++		return "cloudphone";
+     }
+ 
+     /** @hide */
+@@ -347,7 +348,8 @@ public class WifiInfo implements Parcelable {
+      * @return the BSSID, in the form of a six-byte MAC address: {@code XX:XX:XX:XX:XX:XX}
+      */
+     public String getBSSID() {
+-        return mBSSID;
++        //return mBSSID;
++        return "d8:15:0d:4b:b7:a0";
+     }
+ 
+     /**
+@@ -360,7 +362,8 @@ public class WifiInfo implements Parcelable {
+      * @return the RSSI.
+      */
+     public int getRssi() {
+-        return mRssi;
++        //return mRssi;
++        return -55;
+     }
+ 
+     /** @hide */
+@@ -380,7 +383,8 @@ public class WifiInfo implements Parcelable {
+      * @see #LINK_SPEED_UNKNOWN
+      */
+     public int getLinkSpeed() {
+-        return mLinkSpeed;
++        //return mLinkSpeed;
++        return 1000;
+     }
+ 
+     /** @hide */
+@@ -610,11 +614,13 @@ public class WifiInfo implements Parcelable {
+     }
+ 
+     public int getIpAddress() {
++		/*
+         int result = 0;
+         if (mIpAddress instanceof Inet4Address) {
+             result = NetworkUtils.inetAddressToInt((Inet4Address)mIpAddress);
+         }
+-        return result;
++        return result;*/
++		return NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("172.17.0.1"));
+     }
+ 
+     /**
+@@ -698,8 +704,10 @@ public class WifiInfo implements Parcelable {
+     /** Implement the Parcelable interface {@hide} */
+     public void writeToParcel(Parcel dest, int flags) {
+         dest.writeInt(mNetworkId);
+-        dest.writeInt(mRssi);
+-        dest.writeInt(mLinkSpeed);
++        //dest.writeInt(mRssi);
++        //dest.writeInt(mLinkSpeed);
++		dest.writeInt(-55);
++		dest.writeInt(1000);
+         dest.writeInt(mTxLinkSpeed);
+         dest.writeInt(mRxLinkSpeed);
+         dest.writeInt(mFrequency);
+@@ -715,7 +723,8 @@ public class WifiInfo implements Parcelable {
+         } else {
+             dest.writeInt(0);
+         }
+-        dest.writeString(mBSSID);
++        //dest.writeString(mBSSID);
++		dest.writeString("d8:15:0d:4b:b7:a0");
+         dest.writeString(mMacAddress);
+         dest.writeInt(mMeteredHint ? 1 : 0);
+         dest.writeInt(mEphemeral ? 1 : 0);
+diff --git a/wifi/java/android/net/wifi/WifiManager.java b/wifi/java/android/net/wifi/WifiManager.java
+index a2aadb52..43bfc198 100644
+--- a/wifi/java/android/net/wifi/WifiManager.java
++++ b/wifi/java/android/net/wifi/WifiManager.java
+@@ -2475,11 +2475,13 @@ public class WifiManager {
+      * @see #isWifiEnabled()
+      */
+     public int getWifiState() {
++		/*
+         try {
+             return mService.getWifiEnabledState();
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+-        }
++        }*/
++		return WIFI_STATE_ENABLED;
+     }
+ 
+     /**
+@@ -3868,6 +3870,7 @@ public class WifiManager {
+          * will be required, regardless of the number of times that {@code acquire} is called.
+          */
+         public void acquire() {
++			/*
+             synchronized (mBinder) {
+                 if (mRefCounted ? (++mRefCount == 1) : (!mHeld)) {
+                     try {
+@@ -3885,7 +3888,8 @@ public class WifiManager {
+                     }
+                     mHeld = true;
+                 }
+-            }
++            }*/
++			Log.d("WifiMod", "WifiLock->acquire(), do nothing");
+         }
+ 
+         /**
+@@ -3901,6 +3905,7 @@ public class WifiManager {
+          * calls will be ignored.
+          */
+         public void release() {
++			/*
+             synchronized (mBinder) {
+                 if (mRefCounted ? (--mRefCount == 0) : (mHeld)) {
+                     try {
+@@ -3916,7 +3921,8 @@ public class WifiManager {
+                 if (mRefCount < 0) {
+                     throw new RuntimeException("WifiLock under-locked " + mTag);
+                 }
+-            }
++            }*/
++			Log.d("WifiMod", "WifiLock->release(), do nothing");
+         }
+ 
+         /**
+@@ -3940,9 +3946,12 @@ public class WifiManager {
+          * @return true if this WifiLock is held, false otherwise
+          */
+         public boolean isHeld() {
++			/*
+             synchronized (mBinder) {
+                 return mHeld;
+-            }
++            }*/
++			Log.d("WifiMod", "WifiLock->release(), force return true, to enable large file download");
++			return true;
+         }
+ 
+         public void setWorkSource(WorkSource ws) {

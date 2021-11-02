@@ -1,0 +1,100 @@
+Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+diff --git a/PC_Kbox_init.sh b/PC_Kbox_init.sh
+new file mode 100755
+index 0000000..e62aae3
+--- /dev/null
++++ b/PC_Kbox_init.sh
+@@ -0,0 +1,19 @@
++#!/system/bin/sh
++
++function prepare_filesystem() {
++	# copy /system/etc files to /etc
++	cp -r -p /system/etc/* /etc/
++	# Hook cpuinfo
++	if [ -e "/hook_cpuinfo.sh" ] ; then
++	    sh /hook_cpuinfo.sh
++	fi
++}
++
++prepare_filesystem &
++echo "Waiting for filesystem being prepared ..."
++wait $!
++
++prop="/system/vendor/build.prop /system/build.prop"
++
++echo "Starting real init now ..."
++/init
+diff --git a/create-package.sh b/create-package.sh
+new file mode 100755
+index 0000000..721f2f5
+--- /dev/null
++++ b/create-package.sh
+@@ -0,0 +1,63 @@
++#!/bin/bash
++# ******************************************************************************** #
++# Copyright Kbox Technologies Co., Ltd. 2021-2022. All rights reserved.
++# File Name: create-package.sh
++# Description: 打包生成android.tar.
++# Usage: 
++# ******************************************************************************** #
++set -e
++variant=$1
++system=$2
++destdir=$PWD
++
++workdir=$(mktemp -d)
++rootfs=$workdir/rootfs
++
++mkdir -p $rootfs
++
++# Extract ramdisk and preserve ownership of files
++#(cd $rootfs ; cat $ramdisk | gzip -d | sudo cpio -i)
++
++mkdir -p $workdir/system
++sudo mount -o loop,rw $system $workdir/system
++sudo cp -ar $workdir/system/* $rootfs/
++sudo umount $workdir/system
++
++# FIXME
++cp PC_Kbox_init.sh $rootfs/
++#cp setnet.sh $rootfs/
++#chmod +x $rootfs/setnet.sh
++chmod +x $rootfs/PC_Kbox_init.sh
++cd $rootfs
++
++sudo cp -ar $rootfs/system/apex/* $rootfs/apex/
++#release or debug
++#user or userdebug
++if [ "${variant}" = "user" ]; then
++    sudo mv $rootfs/apex/com.android.runtime.release $rootfs/apex/com.android.runtime
++else
++    sudo mv $rootfs/apex/com.android.runtime.debug $rootfs/apex/com.android.runtime
++fi
++
++cd -
++
++if [ -e android.tar ]; then
++    DATE=$(date +%F_%R)
++    SAVETO=android-old-$DATE.tar
++
++    echo "#########################################################"
++    echo "# WARNING: Old android.tar still exists.                 "
++    echo "#          Moving it to $SAVETO.                         "
++    echo "#########################################################"
++
++    sudo mv android.tar $SAVETO
++fi
++
++#sudo mksquashfs $rootfs $destdir/android.img -comp xz -no-xattrs
++cd $rootfs
++sudo tar --numeric-owner -cf $destdir/android.tar ./
++sudo chown $USER:$USER $destdir/android.tar
++
++cd $destdir
++[ -d "$workdir" ] && sudo rm -rf $workdir
++
