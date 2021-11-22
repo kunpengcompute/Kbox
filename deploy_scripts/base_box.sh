@@ -30,7 +30,7 @@ function get_lxcfs_path() {
 }
 
 function get_cpu_volume() {
-    # SERVER_CPU_TAG_NUM：服务器中的CPU号 
+    # SERVER_CPU_TAG_NUM：服务器中的CPU号
     # CONTAINER_CPU_TAG_NUM：映射到容器中的CPU号
     local SERVER_CPU_TAG_NUM=$1 CONTAINER_CPU_TAG_NUM=$2
     echo " --volume=/sys/devices/system/cpu/cpu$SERVER_CPU_TAG_NUM:/sys/devices/system/cpu/cpu$CONTAINER_CPU_TAG_NUM:rw "
@@ -150,7 +150,7 @@ function check_paras() {
         echo "\"--ram_size_mb\" option error, fail: ram size must be number!"
         PARA_ERROR="true"
     fi
-    
+
     if [ ${#PORTS[@]} -eq 0 ]; then
         echo "\"--ports\" option error, fail: para empty!"
         PARA_ERROR="true"
@@ -219,7 +219,6 @@ function start_box() {
             -?*) printf 'WARN: Unknown option: %s\n' "$1" >&2;;
             *)   break
         esac
-
         shift
     done 
     
@@ -321,19 +320,15 @@ function start_box() {
     done
     
     RUN_OPTION+=" $EXTRA_RUN_OPTION "
-
+    
     docker run $RUN_OPTION $IMAGE_NAME sh
-
-    ########################## 5.调整vinput设备权限 ##########################
-    cid=$(docker ps | grep -w ${KBOX_NAME} | awk '{print $1}')
-    echo "c 13:* rwm" >$(ls -d /sys/fs/cgroup/devices/docker/$cid*/devices.allow)
 }
 
 function delete_box() {
     local KBOX_NAME=$1
     set +e
     # 删除容器
-    if [ -n "$(docker ps -a --format {{.Names}} | grep "$KBOX_NAME")" ]; then
+    if [ -n "$(docker ps -a --format {{.Names}} | grep "$KBOX_NAME$")" ]; then
         docker rm -f $KBOX_NAME
         echo "remove docker container $KBOX_NAME success!"
     fi
@@ -341,8 +336,8 @@ function delete_box() {
     # 删除数据文件
     if [ -d /root/mount/data/$KBOX_NAME ]; then
         umount /root/mount/data/$KBOX_NAME
-        [ $? -ne 0 ] && echo "umount failed $KBOX_NAME"
-        rm -r /root/mount/data/$KBOX_NAME
+        [ $? -ne 0 ] && echo "$KBOX_NAME is already umounted!"
+        rm -rf /root/mount/data/$KBOX_NAME
         echo "remove data files /root/mount/data/$KBOX_NAME success!"
     fi
 
@@ -390,7 +385,7 @@ function restart_box() {
 
         local count_time=0
         while true; do
-            docker exec -it ${KBOX_NAME} getprop sys.boot_completed | grep 1 >/dev/null 2>&1
+            docker exec -i ${KBOX_NAME} getprop sys.boot_completed | grep 1 >/dev/null 2>&1
             if [ $? -eq 0 ]; then
                 # 等待容器启动完成
                 break
@@ -419,4 +414,3 @@ case $CMD in
     restart)    restart_box "$@";;
     *)          echo "command must be \"start\", \"delete\" or \"restart\" " ;;
 esac
-

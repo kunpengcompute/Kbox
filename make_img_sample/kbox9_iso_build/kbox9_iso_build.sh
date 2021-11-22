@@ -20,7 +20,7 @@ function error(){
 
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "${CURRENT_DIR}" || exit
-package_dir=$(cd "${CURRENT_DIR}"/../../ && pwd)
+package_dir=$(cd "${CURRENT_DIR}"/../../../ && pwd)
 iso_file="ubuntu-20.04.1-live-server-arm64.iso"
 export iso_file
 

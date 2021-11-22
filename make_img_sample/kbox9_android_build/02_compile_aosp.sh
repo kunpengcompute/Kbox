@@ -21,7 +21,7 @@ function error(){
 
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "${CURRENT_DIR}" || exit
-x86_workdir=$(cd "${CURRENT_DIR}"/../../Kbox_carrier/ && pwd)
+x86_workdir=$(cd "${CURRENT_DIR}"/../../../compile/ && pwd)
 [ ! -e "${x86_workdir}" ] && exit
 cpu_num=$(< /proc/cpuinfo grep -c "processor")
 hostmemory=$(< /proc/meminfo head -n1|awk '{print $2}')

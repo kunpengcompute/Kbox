@@ -96,3 +96,14 @@ diff -uprN build_make_old/target/product/core_tiny.mk build_make_new/target/prod
  
  # The set of packages whose code can be loaded by the system server.
  PRODUCT_SYSTEM_SERVER_APPS += \
+ diff -urpN a/tools/buildinfo.sh b/tools/buildinfo.sh
+--- a/tools/buildinfo.sh	2021-07-27 19:34:02.000000000 +0800
++++ b/tools/buildinfo.sh	2021-07-29 20:05:47.091220113 +0800
+@@ -67,6 +67,7 @@ if [ -n "$BUILD_THUMBPRINT" ] ; then
+ fi
+ echo "ro.build.characteristics=$TARGET_AAPT_CHARACTERISTICS"
+ 
++echo "ro.config.media_vol_default=15"
+ echo "# end build properties"
+ 
+ echo -e "\n# begin video_stream and instruction_stream build properties"

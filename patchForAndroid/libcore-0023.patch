@@ -19,3 +19,27 @@ index 550a5c5932..80370bf6b6 100644
  #endif
  
  #if START_CHILD_USE_CLONE
+diff --git a/libart/src/main/java/java/lang/Daemons.java b/libart/src/main/java/java/lang/Daemons.java
+index f25c78c..875c8e3 100644
+--- a/libart/src/main/java/java/lang/Daemons.java
++++ b/libart/src/main/java/java/lang/Daemons.java
+@@ -427,13 +427,17 @@ public final class Daemons {
+                     Thread.getDefaultUncaughtExceptionHandler() == null) {
+                 // If we have no handler, log and exit.
+                 System.logE(message, syntheticException);
+-                System.exit(2);
++                
++                // dont exit the system when timeout exception is detected
++                // System.exit(2);
+             }
+ 
+             // Otherwise call the handler to do crash reporting.
+             // We don't just throw because we're not the thread that
+             // timed out; we're the thread that detected it.
+-            Thread.currentThread().dispatchUncaughtException(syntheticException);
++
++            // dont exit the system when timeout exception is detected
++            // Thread.currentThread().dispatchUncaughtException(syntheticException);
+         }
+     }
+ 

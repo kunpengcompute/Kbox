@@ -8,6 +8,7 @@ from pathlib import Path
 from shutil import make_archive
 from shutil import copy
 from shutil import rmtree
+from shutil import copytree
 from datetime import datetime
 from tempfile import mkdtemp
 import docker
@@ -50,22 +51,20 @@ class Resource(object):
                 container.short_id, container.name, container.status))
             return False
 
-        temp_res_path = "/" + self.res_path.parts[-1]
         container_res = self.guestos_res_path / container.name
         container_res.mkdir(parents=True, exist_ok=True)
+
+        temp_res_path = "/data/" + self.res_path.parts[-1]
         ret_val = self._run_cmd(container, "mkdir -p " + temp_res_path) \
             and self._run_cmd(container, "cp -r /proc/cpuinfo " + temp_res_path) \
             and self._run_cmd(container, "dumpsys meminfo", to_file=True) \
             and self._run_cmd(container, "top -n1", to_file=True) \
             and self._run_cmd(container, "df -h", to_file=True) \
             and self._run_cmd(container, "lspci", to_file=True)
-
-        container_res_tar = container_res / \
-            "res_{}.tar".format(container.name)
-        with container_res_tar.open(mode="wb") as f:
-            bits, _ = container.get_archive(temp_res_path)
-            for chunk in bits:
-                f.write(chunk)
+        
+        src_path = "/root/mount/data/" + container.name + temp_res_path
+        dst_path = str(container_res / "data")
+        copytree(src_path, dst_path)
 
         return ret_val and self._run_cmd(container, "rm -rf " + temp_res_path)
 

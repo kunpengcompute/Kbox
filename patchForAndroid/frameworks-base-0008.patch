@@ -130,7 +130,62 @@ diff -uprN frameworks_base_old/core/java/android/app/WindowConfiguration.java fr
 diff -uprN frameworks_base_old/core/java/android/view/ViewRootImpl.java frameworks_base_new/core/java/android/view/ViewRootImpl.java
 --- frameworks_base_old/core/java/android/view/ViewRootImpl.java	2020-07-16 22:42:34.288543788 +0800
 +++ frameworks_base_new/core/java/android/view/ViewRootImpl.java	2020-07-16 22:42:58.144544105 +0800
-@@ -988,9 +988,9 @@ public final class ViewRootImpl implemen
+@@ -121,6 +121,9 @@ import java.util.LinkedList;
+ import java.util.Queue;
+ import java.util.concurrent.CountDownLatch;
+ 
++import android.database.ContentObserver;
++import android.provider.Settings;
++
+ /**
+  * The top of a view hierarchy, implementing the needed protocol between View
+  * and the WindowManager.  This is for the most part an internal implementation
+@@ -500,6 +503,32 @@ public final class ViewRootImpl implemen
+     }
+ 
+     private String mTag = TAG;
++    private boolean mIsRegisterOberserver = false;
++    private static boolean mIsInstructionCloudPhone = "instruction".equals(SystemProperties.get("ro.sys.vmi.cloudphone", "unknow"));
++    final ContentObserver mVmiRunmodeObserver = new ContentObserver(new Handler()) {
++        @Override
++        public void onChange(boolean selfChange) {
++            if (mView != null) {
++                noticeChildViewPostInvalidate(mView);
++            }
++        }
++    };
++
++    private static void noticeChildViewPostInvalidate(View view) {
++        if (view == null) {
++            return;
++        }
++        if (view.getVisibility() == View.VISIBLE && view.isAttachedToWindow()) {
++            view.postInvalidate();
++        }
++        if (view instanceof ViewGroup) {
++            ViewGroup group = (ViewGroup) view;
++            int count = group.getChildCount();
++            for (int i = 0; i < count; i++) {
++                noticeChildViewPostInvalidate(group.getChildAt(i));
++            }
++        }
++    }
+ 
+     public ViewRootImpl(Context context, Display display) {
+         mContext = context;
+@@ -544,6 +573,11 @@ public final class ViewRootImpl implemen
+         }
+ 
+         loadSystemProperties();
++        if (mIsInstructionCloudPhone && !mIsRegisterOberserver) {
++            mIsRegisterOberserver = true;
++            mContext.getContentResolver().registerContentObserver(
++                Settings.Global.getUriFor("vmi_runmode"), true, mVmiRunmodeObserver);
++       }
+     }
+ 
+     public static void addFirstDrawHandler(Runnable callback) {
+@@ -988,9 +1022,9 @@ public final class ViewRootImpl implemen
          if (mTranslator != null) return;
  
          // Try to enable hardware acceleration if requested
@@ -143,7 +198,7 @@ diff -uprN frameworks_base_old/core/java/android/view/ViewRootImpl.java framewor
          if (hardwareAccelerated) {
              if (!ThreadedRenderer.isAvailable()) {
                  return;
-@@ -6578,7 +6578,9 @@ public final class ViewRootImpl implemen
+@@ -6578,7 +6612,9 @@ public final class ViewRootImpl implemen
  
          try {
              final AudioManager audioManager = getAudioManager();
@@ -154,6 +209,21 @@ diff -uprN frameworks_base_old/core/java/android/view/ViewRootImpl.java framewor
              switch (effectId) {
                  case SoundEffectConstants.CLICK:
                      audioManager.playSoundEffect(AudioManager.FX_KEY_CLICK);
+@@ -6780,6 +6816,14 @@ public final class ViewRootImpl implemen
+             mAdded = false;
+         }
+         WindowManagerGlobal.getInstance().doRemoveView(this);
++        if (mIsInstructionCloudPhone && mIsRegisterOberserver) {
++            mIsRegisterOberserver = false;
++            try {
++                mContext.getContentResolver().unregisterContentObserver(mVmiRunmodeObserver);
++            } catch (IllegalArgumentException e) {
++                Log.e(mTag, "java.lang.IllegalArgumentException is occured.");
++            }
++        }
+     }
+ 
+     public void requestUpdateConfiguration(Configuration config) {
 diff -uprN frameworks_base_old/core/java/com/android/internal/os/BatteryStatsImpl.java frameworks_base_new/core/java/com/android/internal/os/BatteryStatsImpl.java
 --- frameworks_base_old/core/java/com/android/internal/os/BatteryStatsImpl.java	2020-07-16 22:42:34.316543789 +0800
 +++ frameworks_base_new/core/java/com/android/internal/os/BatteryStatsImpl.java	2020-07-16 22:42:58.280544107 +0800
@@ -246,10 +316,10 @@ diff -uprN frameworks_base_old/core/java/huawei/mock/HwMockFactory.java framewor
 +                if (iAdapter.isKunpengCpu()) {
 +                    return (IMockAdapter) adapter;
 +                }
++                Log.e(TAG, "current cpu model is not supported!");
 +                return null;
 +            }
 +
-+            Log.d(TAG, "current cpu model is not supported!");
 +            return null;
 +        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
 +            Log.e(TAG, "creator IMockAdapter failed", e);
@@ -564,6 +634,33 @@ index 71ee6c2b442..b5d1eacffe3 100644
 diff -uprN frameworks_base_old/opengl/java/android/opengl/GLSurfaceView.java frameworks_base_new/opengl/java/android/opengl/GLSurfaceView.java
 --- frameworks_base_old/opengl/java/android/opengl/GLSurfaceView.java	2020-07-16 22:42:35.720543807 +0800
 +++ frameworks_base_new/opengl/java/android/opengl/GLSurfaceView.java	2020-07-16 22:43:02.388544162 +0800
+@@ -18,6 +18,10 @@ package android.opengl;
+ 
+ import android.content.Context;
+ import android.os.Trace;
++import android.os.SystemProperties;
++import android.os.Handler;
++import android.database.ContentObserver;
++import android.provider.Settings;
+ import android.util.AttributeSet;
+ import android.util.Log;
+ import android.view.SurfaceHolder;
+@@ -210,6 +214,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
+      */
+     public GLSurfaceView(Context context) {
+         super(context);
++        mContext = context;
+         init();
+     }
+ 
+@@ -219,6 +224,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
+      */
+     public GLSurfaceView(Context context, AttributeSet attrs) {
+         super(context, attrs);
++        mContext = context;
+         init();
+     }
+ 
 @@ -439,8 +439,10 @@ public class GLSurfaceView extends Surfa
       */
      public void setEGLConfigChooser(int redSize, int greenSize, int blueSize,
@@ -577,6 +674,47 @@ diff -uprN frameworks_base_old/opengl/java/android/opengl/GLSurfaceView.java fra
      }
  
      /**
+@@ -577,6 +583,14 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
+      * Must not be called before a renderer has been set.
+      */
+     public void onPause() {
++        if (mIsInstructionCloudPhone && mIsRegisterOberserver && mContext != null) {
++            mIsRegisterOberserver = false;
++            try {
++                mContext.getContentResolver().unregisterContentObserver(mVmiRunmodeObserver);
++            } catch (IllegalArgumentException e) {
++                Log.e(TAG, "java.lang.IllegalArgumentException is occured.");
++            }
++        }
+         mGLThread.onPause();
+     }
+ 
+@@ -590,6 +604,11 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
+      * Must not be called before a renderer has been set.
+      */
+     public void onResume() {
++        if (mIsInstructionCloudPhone && !mIsRegisterOberserver && mContext != null) {
++            mIsRegisterOberserver = true;
++            mContext.getContentResolver().registerContentObserver(
++                Settings.Global.getUriFor("vmi_runmode"), true, mVmiRunmodeObserver);
++        }
+         mGLThread.onResume();
+     }
+ 
+@@ -1931,4 +1950,13 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
+     private int mDebugFlags;
+     private int mEGLContextClientVersion;
+     private boolean mPreserveEGLContextOnPause;
++    private Context mContext;
++    private boolean mIsRegisterOberserver = false;
++    private static boolean mIsInstructionCloudPhone = "instruction".equals(SystemProperties.get("ro.sys.vmi.cloudphone", "unknow"));
++    final ContentObserver mVmiRunmodeObserver = new ContentObserver(new Handler()) {
++        @Override
++        public void onChange(boolean selfChange) {
++            requestRender();
++        }
++    };
+ }
 diff -uprN frameworks_base_old/packages/SettingsProvider/res/values/defaults.xml frameworks_base_new/packages/SettingsProvider/res/values/defaults.xml
 --- frameworks_base_old/packages/SettingsProvider/res/values/defaults.xml	2020-07-16 22:42:35.868543809 +0800
 +++ frameworks_base_new/packages/SettingsProvider/res/values/defaults.xml	2020-07-16 22:43:02.900544168 +0800
@@ -758,6 +896,18 @@ diff -uprN frameworks_base_old/services/core/java/com/android/server/net/Network
                      return false;
                  }
              }
+@@ -4348,7 +4348,9 @@ public class NetworkPolicyManagerService
+                     // make sure stats are recorded frequently enough; we aim
+                     // for 2MB threshold for 2GB/month rules.
+                     final long persistThreshold = lowestRule / 1000;
+-                    mNetworkStats.advisePersistThreshold(persistThreshold);
++                    if (mNetworkStats != null) {
++                        mNetworkStats.advisePersistThreshold(persistThreshold);
++                    }
+                     return true;
+                 }
+                 case MSG_UPDATE_INTERFACE_QUOTA: {
+
 diff -uprN frameworks_base_old/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java frameworks_base_new/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java
 --- frameworks_base_old/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java	2020-07-16 22:42:36.140543813 +0800
 +++ frameworks_base_new/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java	2020-07-16 22:43:03.868544181 +0800
@@ -1019,8 +1169,8 @@ diff -uprN frameworks_base_old/services/net/java/android/net/ip/IpClient.java fr
      }
  
 diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager.java frameworks_base_new/telephony/java/android/telephony/TelephonyManager.java
---- frameworks_base_old/telephony/java/android/telephony/TelephonyManager.java	2020-07-16 22:42:36.196543814 +0800
-+++ frameworks_base_new/telephony/java/android/telephony/TelephonyManager.java	2020-07-16 22:43:04.076544184 +0800
+--- frameworks_base_old/telephony/java/android/telephony/TelephonyManager.java	2021-09-01 02:42:46.765788296 +0000
++++ frameworks_base_new/telephony/java/android/telephony/TelephonyManager.java	2021-09-01 02:42:29.285789065 +0000
 @@ -70,7 +70,12 @@ import com.android.internal.telephony.Ph
  import com.android.internal.telephony.RILConstants;
  import com.android.internal.telephony.TelephonyProperties;
@@ -1034,10 +1184,35 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
  import java.io.IOException;
  import java.lang.annotation.Retention;
  import java.lang.annotation.RetentionPolicy;
-@@ -1203,6 +1208,18 @@ public class TelephonyManager {
-         }
-     }
- 
+@@ -1191,17 +1196,31 @@ public class TelephonyManager {
+     /** {@hide} */
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getDeviceSoftwareVersion(int slotIndex) {
+-        ITelephony telephony = getITelephony();
+-        if (telephony == null) return null;
+-
+-        try {
+-            return telephony.getDeviceSoftwareVersionForSlot(slotIndex, getOpPackageName());
+-        } catch (RemoteException ex) {
+-            return null;
+-        } catch (NullPointerException ex) {
+-            return null;
+-        }
+-    }
++        return "00";
++        // ITelephony telephony = getITelephony();
++        // if (telephony == null) return null;
++
++        // try {
++        //     // return telephony.getDeviceSoftwareVersionForSlot(slotIndex, getOpPackageName());
++            
++        // } catch (RemoteException ex) {
++        //     return null;
++        // } catch (NullPointerException ex) {
++        //     return null;
++        // }
++    }
++
 +    // private String readImeiFile() throws IOException {
 +    //     String imeiGenCode = "";
 +    //     imeiGenCode = SystemProperties.get("sys.prop.writeimei");
@@ -1049,11 +1224,10 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +    //     imsiGenCode = SystemProperties.get("sys.prop.writeimsi");
 +    //     return imsiGenCode;
 +    // }
-+
+ 
      /**
       * Returns the unique device ID, for example, the IMEI for GSM and the MEID
-      * or ESN for CDMA phones. Return null if device ID is not available.
-@@ -1218,15 +1235,26 @@ public class TelephonyManager {
+@@ -1218,15 +1237,26 @@ public class TelephonyManager {
      @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
      public String getDeviceId() {
          try {
@@ -1081,7 +1255,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -1247,15 +1275,25 @@ public class TelephonyManager {
+@@ -1247,15 +1277,25 @@ public class TelephonyManager {
      public String getDeviceId(int slotIndex) {
          // FIXME this assumes phoneId == slotIndex
          try {
@@ -1109,7 +1283,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -1268,7 +1306,16 @@ public class TelephonyManager {
+@@ -1268,7 +1308,16 @@ public class TelephonyManager {
      @SuppressAutoDoc // Blocked by b/72967236 - no support for carrier privileges
      @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
      public String getImei() {
@@ -1127,7 +1301,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -1283,9 +1330,8 @@ public class TelephonyManager {
+@@ -1283,9 +1332,8 @@ public class TelephonyManager {
      @SuppressAutoDoc // Blocked by b/72967236 - no support for carrier privileges
      @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
      public String getImei(int slotIndex) {
@@ -1138,7 +1312,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
          try {
              return telephony.getImeiForSlot(slotIndex, getOpPackageName());
          } catch (RemoteException ex) {
-@@ -1293,6 +1339,16 @@ public class TelephonyManager {
+@@ -1293,6 +1341,16 @@ public class TelephonyManager {
          } catch (NullPointerException ex) {
              return null;
          }
@@ -1155,7 +1329,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -1322,8 +1378,9 @@ public class TelephonyManager {
+@@ -1322,8 +1380,9 @@ public class TelephonyManager {
          if (telephony == null) return null;
  
          try {
@@ -1167,7 +1341,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
              return null;
          } catch (NullPointerException ex) {
              return null;
-@@ -1767,8 +1824,18 @@ public class TelephonyManager {
+@@ -1767,8 +1826,18 @@ public class TelephonyManager {
       * @hide
       */
      public String getNetworkOperatorName(int subId) {
@@ -1188,7 +1362,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -1810,7 +1877,17 @@ public class TelephonyManager {
+@@ -1810,7 +1879,17 @@ public class TelephonyManager {
       * @hide
       **/
      public String getNetworkOperatorForPhone(int phoneId) {
@@ -1207,7 +1381,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
       }
  
  
-@@ -1915,13 +1992,24 @@ public class TelephonyManager {
+@@ -1915,13 +1994,24 @@ public class TelephonyManager {
       */
      /** {@hide} */
      public String getNetworkCountryIsoForPhone(int phoneId) {
@@ -1233,7 +1407,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /*
-@@ -2622,8 +2710,20 @@ public class TelephonyManager {
+@@ -2622,8 +2712,20 @@ public class TelephonyManager {
       * @hide
       */
      public String getSimOperatorNumericForPhone(int phoneId) {
@@ -1256,7 +1430,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -2658,8 +2758,20 @@ public class TelephonyManager {
+@@ -2658,8 +2760,20 @@ public class TelephonyManager {
       * @hide
       */
      public String getSimOperatorNameForPhone(int phoneId) {
@@ -1279,7 +1453,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -2686,8 +2798,18 @@ public class TelephonyManager {
+@@ -2686,8 +2800,18 @@ public class TelephonyManager {
       * @hide
       */
      public String getSimCountryIsoForPhone(int phoneId) {
@@ -1300,7 +1474,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -2712,6 +2834,7 @@ public class TelephonyManager {
+@@ -2712,6 +2836,7 @@ public class TelephonyManager {
       */
      @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
      public String getSimSerialNumber(int subId) {
@@ -1308,7 +1482,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
          try {
              IPhoneSubInfo info = getSubscriberInfo();
              if (info == null)
-@@ -2722,7 +2845,20 @@ public class TelephonyManager {
+@@ -2722,7 +2847,20 @@ public class TelephonyManager {
          } catch (NullPointerException ex) {
              // This could happen before phone restarts due to crashing
              return null;
@@ -1330,7 +1504,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      }
  
      /**
-@@ -2858,6 +2994,7 @@ public class TelephonyManager {
+@@ -2858,6 +2996,7 @@ public class TelephonyManager {
       */
      @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
      public String getSubscriberId(int subId) {
@@ -1338,7 +1512,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
          try {
              IPhoneSubInfo info = getSubscriberInfo();
              if (info == null)
-@@ -2868,6 +3005,16 @@ public class TelephonyManager {
+@@ -2868,6 +3007,16 @@ public class TelephonyManager {
          } catch (NullPointerException ex) {
              // This could happen before phone restarts due to crashing
              return null;
@@ -1355,7 +1529,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
          }
      }
  
-@@ -2975,22 +3122,22 @@ public class TelephonyManager {
+@@ -2975,22 +3124,22 @@ public class TelephonyManager {
          return isKeyEnabled(keyAvailability, keyType);
      }
  
@@ -1394,7 +1568,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
      public void setCarrierInfoForImsiEncryption(ImsiEncryptionInfo imsiEncryptionInfo) {
          try {
              IPhoneSubInfo info = getSubscriberInfo();
-@@ -3098,6 +3245,7 @@ public class TelephonyManager {
+@@ -3098,6 +3247,7 @@ public class TelephonyManager {
          if (number != null) {
              return number;
          }
@@ -1402,7 +1576,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
          try {
              IPhoneSubInfo info = getSubscriberInfo();
              if (info == null)
-@@ -3108,7 +3256,19 @@ public class TelephonyManager {
+@@ -3108,7 +3258,19 @@ public class TelephonyManager {
          } catch (NullPointerException ex) {
              // This could happen before phone restarts due to crashing
              return null;
@@ -1972,3 +2146,36 @@ diff -Nurp frameworks_base_old/services/core/java/com/android/server/pm/InstantA
  
          // In case you wonder why we stash the cookies aside, we use
          // the user id for the message id and the package for the payload.
+diff -Nurp frameworks_base_old/services/core/java/com/android/server/wm/DisplayContent.java frameworks_base_new/services/core/java/com/android/server/wm/DisplayContent.java
+index cd8fdbfb..ef07f6a3 100644
+--- frameworks_base_old/services/core/java/com/android/server/wm/DisplayContent.java
++++ frameworks_base_new/services/core/java/com/android/server/wm/DisplayContent.java
+@@ -133,6 +133,7 @@ import android.os.Handler;
+ import android.os.IBinder;
+ import android.os.RemoteException;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.os.Trace;
+ import android.util.ArraySet;
+ import android.util.DisplayMetrics;
+@@ -400,6 +401,8 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+ 
+     private MagnificationSpec mMagnificationSpec;
+ 
++    private static boolean mIsInstructionCloudPhone = "instruction".equals(SystemProperties.get("ro.sys.vmi.cloudphone", "unknow"));
++
+     private final Consumer<WindowState> mUpdateWindowsForAnimator = w -> {
+         WindowStateAnimator winAnimator = w.mWinAnimator;
+         final AppWindowToken atoken = w.mAppToken;
+@@ -1048,7 +1051,10 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+             // No change.
+             return false;
+         }
+-
++        if (mIsInstructionCloudPhone) {
++            SystemProperties.set("vmi.sys.orientation", String.valueOf(rotation));
++            Slog.v(TAG_WM, "Display id= " + mDisplayId + " rotation change " + oldRotation + " to " + rotation);
++        }
+         if (DEBUG_ORIENTATION) Slog.v(TAG_WM, "Display id=" + mDisplayId
+                 + " rotation changed to " + rotation
+                 + (altOrientation ? " (alt)" : "") + " from " + oldRotation

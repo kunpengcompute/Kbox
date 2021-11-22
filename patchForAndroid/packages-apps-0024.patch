@@ -141,7 +141,7 @@ index 608c8f6576..2517341d6c 100644
          for (ScreenLockType lock : ScreenLockType.values()) {
              if (lock.preferenceKey.equals(key)) {
 +                if (!(key.equals("unlock_set_pattern") || key.equals("unlock_set_pin") ||
-+                      key.equals("unlock_set_password")))
++                      key.equals("unlock_set_password") || key.equals("unlock_set_none")))
                  return lock;
              }
          }
@@ -171,7 +171,12 @@ diff --git a/Settings/res/xml/network_and_internet.xml b/Settings/res/xml/networ
 diff --git a/Settings/res/xml/security_settings_picker.xml b/Settings/res/xml/security_settings_picker.xml
 --- a/Settings/res/xml/security_settings_picker.xml
 +++ b/Settings/res/xml/security_settings_picker.xml
-@@ -30,17 +30,14 @@
+@@ -25,22 +25,18 @@
+
+     <com.android.settingslib.RestrictedPreference
+             android:key="unlock_set_none"
+-            android:title="@string/unlock_set_unlock_none_title"
+             android:persistent="false"/>
  
      <com.android.settingslib.RestrictedPreference
              android:key="unlock_set_pattern"
@@ -230,18 +235,6 @@ diff -uprN a/Settings/AndroidManifest.xml b/Settings/AndroidManifest.xml
              <meta-data android:name="com.android.settings.FRAGMENT_CLASS"
                  android:value="com.android.settings.connecteddevice.ConnectedDeviceDashboardFragment"/>
              <meta-data android:name="com.android.settings.category"
-@@ -2668,9 +2668,9 @@
-                 <category android:name="android.intent.category.VOICE_LAUNCH" />
-                 <category android:name="com.android.settings.SHORTCUT" />
-             </intent-filter>
--            <intent-filter android:priority="6">
-+            <!-- <intent-filter android:priority="6">
-                 <action android:name="com.android.settings.action.SETTINGS" />
--            </intent-filter>
-+            </intent-filter>-->
-             <meta-data android:name="com.android.settings.category"
-                        android:value="com.android.settings.category.ia.homepage" />
-             <meta-data android:name="com.android.settings.FRAGMENT_CLASS"
 diff -uprN a/Settings/res/xml/accessibility_settings.xml b/Settings/res/xml/accessibility_settings.xml
 --- a/Settings/res/xml/accessibility_settings.xml   2021-06-28 19:19:16.801215303 +0800
 +++ b/Settings/res/xml/accessibility_settings.xml   2021-06-28 17:37:09.677442059 +0800
@@ -380,4 +373,32 @@ diff -uprN a/Settings/src/com/android/settings/accessibility/AccessibilitySettin
      }
  
      private void updateMagnificationSummary(Preference pref) {
+diff -uprN a/Settings/src/com/android/settings/ResetNetworkConfirm.java b/Settings/src/com/android/settings/xml/ResetNetworkConfirm.java
+--- a/Settings/src/com/android/settings/ResetNetworkConfirm.java	2021-08-10 17:25:50.107594288 +0800
++++ b/Settings/src/com/android/settings/ResetNetworkConfirm.java	2021-08-10 17:27:02.419596004 +0800
+@@ -196,8 +196,9 @@ public class ResetNetworkConfirm extends
+      * Configure the UI for the final confirmation interaction
+      */
+     private void establishFinalConfirmationState() {
+-        mContentView.findViewById(R.id.execute_reset_network)
+-                .setOnClickListener(mFinalClickListener);
++        // shield reset network button click
++        // mContentView.findViewById(R.id.execute_reset_network)
++        //         .setOnClickListener(mFinalClickListener);
+     }
 
+     @Override
+diff --git a/Settings/src/com/android/settings/applications/manageapplications/ResetAppPrefPreferenceController.java b/Settings/src/com/android/settings/applications/manageapplications/ResetAppPrefPreferenceController.java
+--- a/Settings/src/com/android/settings/applications/manageapplications/ResetAppPrefPreferenceController.java	2021-08-25 11:47:58.029865631 +0800
++++ b/Settings/src/com/android/settings/applications/manageapplications/ResetAppPrefPreferenceController.java	2021-08-25 11:47:28.457864929 +0800
+@@ -43,6 +43,10 @@ public class ResetAppPrefPreferenceContr
+
+     @Override
+     public boolean handlePreferenceTreeClick(Preference preference) {
++        boolean isAppDisabled = true; // disable app preference
++        if (isAppDisabled) {
++            return false;
++        }
+         if (!TextUtils.equals(preference.getKey(), getPreferenceKey())) {
+             return false;
+         }

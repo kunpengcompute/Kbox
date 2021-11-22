@@ -367,7 +367,15 @@ diff --git a/libc/bionic/system_property_set.cpp b/libc/bionic/system_property_s
 index a70a37683..61438c813 100644
 --- a/libc/bionic/system_property_set.cpp
 +++ b/libc/bionic/system_property_set.cpp
-@@ -173,6 +173,139 @@ class SocketWriter {
+@@ -40,6 +40,7 @@
+ #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
+ #include <sys/_system_properties.h>
+ #include <unistd.h>
++#include <float.h>
+ 
+ #include <async_safe/log.h>
+ 
+@@ -173,6 +174,148 @@ class SocketWriter {
    DISALLOW_IMPLICIT_CONSTRUCTORS(SocketWriter);
  };
 
@@ -491,6 +499,7 @@ index a70a37683..61438c813 100644
 +      }
 +      return state == STATE_INTEGER || state == STATE_POINT || state == STATE_FRACTION || state == STATE_EXP_NUMBER;
 +    }
++
 +   bool isIllegalStr(const char* s) {
 +      for (unsigned long i = 0; i < strlen(s); i++) {
 +          if (!((s[i] >= 'a' && s[i] <= 'z') ||
@@ -502,27 +511,40 @@ index a70a37683..61438c813 100644
 +      }
 +      return true;
 +  }
++
++  bool isPropSame(const char* propName, const char* value) {
++    char valueProp[PROP_VALUE_MAX];
++    if (__system_property_get(propName, valueProp) > 0 && strcmp(value,valueProp) == 0) {
++        return true;
++    }
++    return false;
++  }
 +};
 +
  struct prop_msg {
    unsigned cmd;
    char name[PROP_NAME_MAX];
-@@ -258,6 +391,60 @@ int __system_property_set(const char* ke
+@@ -258,6 +401,123 @@ int __system_property_set(const char* ke
      detect_protocol_version();
    }
 
-+  if (strcmp(key, "sys.input.mouse.name") == 0 || strcmp(key, "sys.input.gamepad1.name") == 0
-+  || strcmp(key, "sys.input.gamepad2.name") == 0 ) {
++  if (strcmp(key, "persist.sys.input.mouse.name") == 0 || strcmp(key, "persist.sys.input.gamepad1.name") == 0
++  || strcmp(key, "persist.sys.input.gamepad2.name") == 0 ) {
 +    if (strlen(value) == 0 || strlen(value) > 64) {
 +      return -1;
 +    }
 +    CheckProperty check;
++    if (check.isPropSame("persist.sys.input.mouse.name", value)
++    || check.isPropSame("persist.sys.input.gamepad1.name", value)
++    || check.isPropSame("persist.sys.input.gamepad2.name", value)) {
++      return -1;
++    }
 +    if (!check.isIllegalStr(value)) {
 +      return -1;
 +    }
 +  }
 +
-+  if (strcmp(key, "sys.prop.writeimei") == 0) {
++  if (strcmp(key, "persist.sys.prop.writeimei") == 0) {
 +    if (strlen(value) < 15 || strlen(value) > 17) {
 +      return -1;
 +    }
@@ -533,15 +555,73 @@ index a70a37683..61438c813 100644
 +    }
 +  }
 +
-+  if (strcmp(key, "sensors.mock.data.x") == 0 || strcmp(key, "sensors.mock.data.y") == 0
-+  || strcmp(key, "sensors.mock.data.z") == 0) {
++  if (strcmp(key, "persist.sensors.mock.data.x") == 0 ||
++      strcmp(key, "persist.sensors.mock.data.y") == 0 ||
++      strcmp(key, "persist.sensors.mock.data.z") == 0 ||
++      strcmp(key, "persist.gps.mock.latitude")   == 0 ||
++      strcmp(key, "persist.gps.mock.longitude")  == 0 ||
++      strcmp(key, "persist.gps.mock.altitude")   == 0 ||
++      strcmp(key, "persist.gps.mock.speed")      == 0 ||
++      strcmp(key, "persist.gps.mock.bearing")    == 0 ||
++      strcmp(key, "persist.gps.mock.accuracy")   == 0)
++  {
 +    CheckProperty check;
 +    if (check.isNumber(value) == 0) {
 +      return -1;
 +    }
 +  }
 +
-+  if (strcmp(key, "sensors.mock.id") == 0) {
++  if (strcmp(key, "persist.sensors.mock.data.x") == 0 ||
++      strcmp(key, "persist.sensors.mock.data.y") == 0 ||
++      strcmp(key, "persist.sensors.mock.data.z") == 0)
++  {
++    double data = strtod(value, nullptr);
++    if (data > FLT_MAX || data < -FLT_MAX) {
++      return -1;
++    }
++  }
++
++  // latitude range [-90, 90] degrees
++  if (strcmp(key, "persist.gps.mock.latitude") == 0) {
++    double latitude = strtod(value, nullptr);
++    if (latitude < -90 || latitude > 90) {
++      return -1;
++    }
++  }
++
++  // longitude range [-180, 180] degree
++  if (strcmp(key, "persist.gps.mock.longitude") == 0) {
++    double longitude = strtod(value, nullptr);
++    if (longitude < -180 || longitude > 180) {
++      return -1;
++    }
++  }
++
++  // speed range [0,+∞) meters per second
++  if (strcmp(key, "persist.gps.mock.speed") == 0) {
++    float speed = strtof(value, nullptr);
++    if (speed < 0 || speed > 400) {
++      return -1;
++    }
++  }
++
++  // bearing range [0, 360) degrees
++  if (strcmp(key, "persist.gps.mock.bearing") == 0) {
++    float bearing = strtof(value, nullptr);
++    if (bearing < 0 || bearing >=360 ) {
++      return -1;
++    }
++  }
++
++  // accuracy range [0,+∞) meter
++  if (strcmp(key, "persist.gps.mock.accuracy") == 0) {
++    float accuracy = strtof(value, nullptr);
++    if (accuracy < 0) {
++      return -1;
++    }
++  }
++
++  if (strcmp(key, "persist.sensors.mock.id") == 0) {
 +    for (unsigned int i = 0; i < strlen(value); i++) {
 +      if (!('0' <= value[i] && value[i] <= '9')) {
 +        return -1;
@@ -553,7 +633,7 @@ index a70a37683..61438c813 100644
 +    }
 +  }
 +
-+  if (strcmp(key, "sensors.mock.delaytime") == 0) {
++  if (strcmp(key, "persist.sensors.mock.delaytime") == 0) {
 +    for (unsigned int i = 0; i < strlen(value); i++) {
 +      if (!('0' <= value[i] && value[i] <= '9')) {
 +        return -1;

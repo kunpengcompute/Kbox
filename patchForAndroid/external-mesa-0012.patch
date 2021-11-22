@@ -755,3 +755,39 @@ diff -urN old/src/mesa/main/texcompress_etc.c new/src/mesa/main/texcompress_etc.
  
                 dst += comps;
              }
+diff -urN old/src/gallium/drivers/radeon/radeon_winsys.h new/src/gallium/drivers/radeon/radeon_winsys.h
+--- old/src/gallium/drivers/radeon/radeon_winsys.h	2021-08-26 11:04:37.375271284 +0000
++++ new/src/gallium/drivers/radeon/radeon_winsys.h	2021-08-26 11:12:52.699249491 +0000
+@@ -38,7 +38,7 @@
+ #include "amd/common/ac_gpu_info.h"
+ #include "amd/common/ac_surface.h"
+ #include "pipebuffer/pb_buffer.h"
+-
++#include <log/log.h>
+ /* Tiling flags. */
+ enum radeon_bo_layout
+ {
+@@ -701,12 +701,23 @@
+ 
+ static inline void radeon_emit(struct radeon_cmdbuf *cs, uint32_t value)
+ {
++   if (cs == NULL ||
++       cs->current.buf == NULL ||
++       cs->current.cdw >= cs->current.max_dw) {
++      ALOGE("radeon_emit Out-of-bounds access");      
++      return;
++   }
++
+    cs->current.buf[cs->current.cdw++] = value;
+ }
+ 
+ static inline void radeon_emit_array(struct radeon_cmdbuf *cs, const uint32_t *values,
+                                      unsigned count)
+ {
++   if (cs == NULL || values == NULL) {
++       ALOGE("radeon_emit_array Out-of-bounds access!!");
++       return;
++   }
+    memcpy(cs->current.buf + cs->current.cdw, values, count * 4);
+    cs->current.cdw += count;
+ }
