@@ -49,20 +49,25 @@ function check_ashmem_binder() {
 }
 
 function check_exagear() {
+    # 已经注册，无需恢复
     if [ -e "/proc/sys/fs/binfmt_misc/ubt_a32a64" ];then
         return
     fi
 
-    if [ ! -e "/root/dependency/ExaGear_ARM32-ARM64_V2.1/ubt_a32a64" ];then
-        echo "can not find file ubt_a32a64"
+    # 在归档路径下模糊查找
+    local UBT_PATHS=($(ls /root/dependency/*/ubt_a32a64))
+    if [ ${#UBT_PATHS[@]} -ne 1 ];then
+        echo "No ubt_a32a64 file or many ubt_a32a64 files exist!"
         exit 1
     fi
 
+    # 恢复exgear文件
     mkdir -p /opt/exagear
     chmod -R 700 /opt/exagear
-    cp -rf /root/dependency/ExaGear_ARM32-ARM64_V2.1/ubt_a32a64 /opt/exagear/
+    cp -rf ${UBT_PATHS[0]} /opt/exagear/
     cd /opt/exagear
     chmod +x ubt_a32a64
+
     # 注册转码 续行符后字符串顶格
     echo ":ubt_a32a64:M::\x7fELF\x01\x01\x01\x00\x00\x00\x0"\
 "0\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xf"\
@@ -72,6 +77,12 @@ function check_exagear() {
 
 function check_paras() {
     set +e
+    
+    if [ $# -eq 0 ];then
+        echo "command must be \"start\", \"delete\" or \"restart\" "
+        exit 1
+    fi
+
     if [ $1 == "start" ]; then
         if [ $# -gt 4 ]; then
             echo "the number of parameters exceeds 4!"
@@ -112,20 +123,13 @@ function check_paras() {
             echo "start_num must be less than or equal to end_num"
             exit 1
         fi
-
-        local TAG_NUMBER
-        for TAG_NUMBER in $(seq $MIN $MAX);do
-            if [ -n "$(docker ps -a --format {{.Names}} | grep "kbox_$TAG_NUMBER$")" ]; then
-                echo "kbox_$TAG_NUMBER exist!"
-                exit 1
-            fi
-        done
     elif [ $1 == "delete" ]; then
         if [ $# -gt 3 ]; then
             echo "the number of parameters exceeds 3!"
             echo "Usage: "
             echo "./android9_kbox.sh delete <start_container_id> <end_container_id>"
             echo "./android9_kbox.sh delete <container_id>"
+            exit 1
         fi
 
         if [ -n "`echo "$2$3" | sed 's/[0-9]//g'`" ]; then
@@ -148,6 +152,7 @@ function check_paras() {
             echo "Usage: "
             echo "./android9_kbox.sh restart <start_container_id> <end_container_id>"
             echo "./android9_kbox.sh restart <container_id>"
+            exit 1
         fi
 
         if [ -n "`echo "$2$3" | sed 's/[0-9]//g'`" ]; then
@@ -164,13 +169,6 @@ function check_paras() {
             echo "start_num must be less than or equal to end_num"
             exit 1
         fi
-        local TAG_NUMBER
-        for TAG_NUMBER in $(seq $MIN $MAX);do
-            if [ -z "$(docker ps -a --format {{.Names}} | grep "kbox_$TAG_NUMBER$")" ]; then
-                echo "no container kbox_$TAG_NUMBER!"
-                exit 1
-            fi
-        done
     else
         echo "command must be \"start\", \"delete\" or \"restart\" "
     fi
@@ -298,7 +296,7 @@ function wait_container_ready() {
         count_time=0
         set +e
         while true; do
-            docker exec -it ${KBOX_NAME} getprop sys.boot_completed | grep 1 >/dev/null 2>&1
+            docker exec -i ${KBOX_NAME} getprop sys.boot_completed | grep 1 >/dev/null 2>&1
             if [ $? -eq 0 ]; then
                 echo "${KBOX_NAME} started successfully at $(date +'%Y-%m-%d %H:%M:%S')!"
                 if [ -f "apk_init.sh" ]; then
@@ -352,6 +350,7 @@ function start_box_by_id() {
 
     local RESERVE_CPUS_WITH_NUMA0_1=4
     local RESERVE_CPUS_WITH_NUMA2_3=0
+
     # 不跨numa，没有GPU的numa对应的CPU全部保留不使用
     local NUM_OF_GPUS_WITH_NUMA0_1=$(get_gpu_info | grep -e ",0$" -e ",1$"| wc -l)
     if [ ${NUM_OF_GPUS_WITH_NUMA0_1} -eq 0 ]; then
@@ -407,7 +406,11 @@ function start_box_by_id() {
     --extra_run_option "$EXTRA_RUN_OPTION" \
     --image "$IMAGE_NAME"
 
-    if [ -n "$(docker ps -a --format {{.Names}} | grep "$CONTAINER_NAME")" ]; then
+    # 调整vinput设备权限
+    cid=$(docker ps | grep -w ${CONTAINER_NAME} | awk '{print $1}')
+    echo "c 13:* rwm" >$(ls -d /sys/fs/cgroup/devices/docker/$cid*/devices.allow)
+
+    if [ -n "$(docker ps -a --format {{.Names}} | grep "$CONTAINER_NAME$")" ]; then
         # 等待容器启动
         wait_container_ready ${CONTAINER_NAME}
 
@@ -430,7 +433,11 @@ function main() {
 
         local TAG_NUMBER
         for TAG_NUMBER in $(seq $MIN $MAX); do
-            start_box_by_id $1 $2 $TAG_NUMBER
+            if [ -n "$(docker ps -a --format {{.Names}} | grep "kbox_$TAG_NUMBER$")" ]; then
+                echo "kbox_$TAG_NUMBER exist!"
+            else
+                start_box_by_id $1 $2 $TAG_NUMBER
+            fi
         done
     elif [ $1 = "delete" ];then
         local MIN=$2 MAX=$3
@@ -440,9 +447,12 @@ function main() {
 
         local TAG_NUMBER
         for TAG_NUMBER in $(seq $MIN $MAX);do
-            bash $CURRENT_DIR/base_box.sh delete "kbox_$TAG_NUMBER"
+            if [ -z "$(docker ps -a --format {{.Names}} | grep "kbox_$TAG_NUMBER$")" ]; then
+                echo "no container kbox_$TAG_NUMBER!"
+            else
+                bash $CURRENT_DIR/base_box.sh delete "kbox_$TAG_NUMBER"
+            fi
         done
-
     elif [ $1 = "restart" ];then
         local MIN=$2 MAX=$3
         if [ -z $3 ];then
@@ -450,7 +460,14 @@ function main() {
         fi
         local TAG_NUMBER
         for TAG_NUMBER in $(seq $MIN $MAX);do
-            bash $CURRENT_DIR/base_box.sh restart "kbox_$TAG_NUMBER"
+            if [ -z "$(docker ps -a --format {{.Names}} | grep "kbox_$TAG_NUMBER$")" ]; then
+                echo "no container kbox_$TAG_NUMBER!"
+            else
+                bash $CURRENT_DIR/base_box.sh restart "kbox_$TAG_NUMBER"
+                # 调整vinput设备权限
+                cid=$(docker ps | grep -w "kbox_$TAG_NUMBER" | awk '{print $1}')
+                echo "c 13:* rwm" >$(ls -d /sys/fs/cgroup/devices/docker/$cid*/devices.allow)
+            fi
         done
     fi
 }

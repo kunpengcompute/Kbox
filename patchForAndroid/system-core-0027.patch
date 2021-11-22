@@ -66,18 +66,27 @@ index 4172ba754..c845e289a 100644
  
      return PropertySet(name, value, error);
  }
-@@ -838,9 +840,11 @@ void CreateSerializedPropertyInfo() {
+@@ -758,6 +760,8 @@ void load_recovery_id_prop() {
+
+ void load_system_props() {
+     load_properties_from_file("/system/build.prop", NULL);
++    load_properties_from_file("/system/kbox.prop", NULL);
++    load_properties_from_file("/vendor/vmi_video_engine.prop", NULL);
+     load_properties_from_file("/odm/build.prop", NULL);
+     load_properties_from_file("/vendor/build.prop", NULL);
+     load_properties_from_file("/factory/factory.prop", "ro.*");
+@@ -838,9 +842,11 @@ void CreateSerializedPropertyInfo() {
  }
- 
+
  void start_property_service() {
 +#if 0
      selinux_callback cb;
      cb.func_audit = SelinuxAuditCallback;
      selinux_set_callback(SELINUX_CB_AUDIT, cb);
 +#endif
- 
+
      property_set("ro.property_service.version", "2");
- 
+
 diff --git a/init/selinux.cpp b/init/selinux.cpp
 index 0ba5c4ae3..276bfec93 100644
 --- a/init/selinux.cpp

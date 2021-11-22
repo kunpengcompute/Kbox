@@ -22,12 +22,12 @@ function error(){
 
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "${CURRENT_DIR}" || exit
-package_dir=$(cd "${CURRENT_DIR}"/../../ && pwd)
-[ ! -e "${CURRENT_DIR}/../../kernel/output/" ] && exit
-output_dir=$(cd "${CURRENT_DIR}"/../../kernel/output/ && pwd)
-[ ! -e "${CURRENT_DIR}/../../iso_old/" ] && rm -rf "${CURRENT_DIR}"/../../iso_old
-mkdir -p "${CURRENT_DIR}"/../../iso_old/
-iso_dir_old=$(cd "${CURRENT_DIR}"/../../iso_old/ && pwd)
+package_dir=$(cd "${CURRENT_DIR}"/../../../ && pwd)
+[ ! -e "${CURRENT_DIR}/../../../kernel/output/" ] && exit
+output_dir=$(cd "${CURRENT_DIR}"/../../../kernel/output/ && pwd)
+[ ! -e "${CURRENT_DIR}/../../../iso_old/" ] && rm -rf "${CURRENT_DIR}"/../../../iso_old
+mkdir -p "${CURRENT_DIR}"/../../../iso_old/
+iso_dir_old=$(cd "${CURRENT_DIR}"/../../../iso_old/ && pwd)
 iso_name="${iso_file:-ubuntu-20.04.1-live-server-arm64.iso}"
 
 ################################################################################
@@ -79,7 +79,7 @@ function prepare(){
     cp -rf "${output_dir}"/ashmem_linux.ko squashfs-root/usr/new_file/
     cp -rf "${output_dir}"/aosp9_binder_linux.ko squashfs-root/usr/new_file/
     cp -rf "${package_dir}"/android.tar squashfs-root/usr/new_file/image/
-    cp -rf "${package_dir}"/deploy_scripts squashfs-root/usr/new_file/
+    cp -rf "${package_dir}"/Kbox-AOSP9/deploy_scripts squashfs-root/usr/new_file/
     cp -rf "${CURRENT_DIR}"/rc-local.service squashfs-root/etc/systemd/system/
     cp -rf "${CURRENT_DIR}"/rc.local squashfs-root/etc/
     chmod 750 squashfs-root/etc/rc.local

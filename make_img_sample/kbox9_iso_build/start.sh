@@ -28,17 +28,47 @@ kernel_r=$(uname -r)
 
 ################################################################################
 # Function Name: install_docker
-# Description  : 安装预置的docker deb包。
+# Description  : 安装预置的docker-*.tgz包。
 # Parameter    : 
 # Returns      : 0 on success, otherwise on fail
 ################################################################################
 function install_docker(){
     local docker_info_StorageDriver
     cd ${new_file_dir}/docker_deb || exit
-    dpkg -i libseccomp2_*_arm64.deb
-    dpkg -i runc_*_arm64.deb
-    dpkg -i containerd_*_arm64.deb
-    dpkg -i docker.io_*_arm64.deb
+    tar xvpf docker-*.tgz
+    cp -p docker/* /usr/bin
+    cat >/usr/lib/systemd/system/docker.service <<EOF
+[Unit]
+Description=Docker Application Container Engine
+Documentation=http://docs.docker.com
+After=network.target docker.socket
+[Service]
+Type=notify
+EnvironmentFile=-/run/flannel/docker
+WorkingDirectory=/usr/local/bin
+ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:4243 -H unix:///var/run/docker.sock --selinux-enabled=false --log-opt max-size=1g
+ExecReload=/bin/kill -s HUP $MAINPID
+# Having non-zero Limit*s causes performance problems due to accounting overhead
+# in the kernel. We recommend using cgroups to do container-local accounting.
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+# Uncomment TasksMax if your systemd version supports it.
+# Only systemd 226 and above support this version.
+#TasksMax=infinity
+TimeoutStartSec=0
+# set delegate yes so that systemd does not reset the cgroups of docker containers
+Delegate=yes
+# kill only the docker process, not all processes in the cgroup
+KillMode=process
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl restart docker
+    systemctl enable docker
+
     docker_info_StorageDriver=$(docker info |grep "Storage Driver" | awk '{print $3}')
     if [ "${docker_info_StorageDriver}" = "overlay2" ]
     then
@@ -77,6 +107,9 @@ function install_kernel(){
         optimize_conf
         reboot
     fi
+        systemctl daemon-reload
+        systemctl restart docker
+        systemctl enable docker
 }
 
 ################################################################################

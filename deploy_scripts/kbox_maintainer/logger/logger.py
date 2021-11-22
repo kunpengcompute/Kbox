@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from shutil import make_archive
 from shutil import rmtree
+from shutil import copytree
 from datetime import datetime
 from tempfile import mkdtemp
 import docker
@@ -59,7 +60,7 @@ class Logger(object):
                 logging.fatal("docker inspect failed")
                 return False
 
-        log_path = "/" + self.log_path.parts[-1]
+        log_path = "/data/" + self.log_path.parts[-1]
         ret_val = self._run_cmd(container, "mkdir -p " + log_path) \
             and self._run_cmd(container, "logcat -d -f " + log_path + "/logcat.log") \
             and self._run_cmd(container, "cp -r /data/anr " + log_path) \
@@ -69,12 +70,9 @@ class Logger(object):
             and self._run_cmd(container, "dumpsys input", to_file=True) \
             and self._run_cmd(container, "ps -a", to_file=True)
 
-        log_inside_container_tar = container_log / \
-            "log_{}.tar".format(container.name)
-        with log_inside_container_tar.open(mode="wb") as f:
-            bits, _ = container.get_archive(log_path)
-            for chunk in bits:
-                f.write(chunk)
+        src_path = "/root/mount/data/" + container.name + log_path
+        dst_path = str(container_log / "data")
+        copytree(src_path, dst_path)
 
         return ret_val and self._run_cmd(container, "rm -rf " + log_path)
 

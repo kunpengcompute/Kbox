@@ -21,11 +21,11 @@ function error(){
 
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "${CURRENT_DIR}" || exit
-package_dir=$(cd "${CURRENT_DIR}"/../../ && pwd)
-mkdir -p "${CURRENT_DIR}"/../../kernel/
-kernel_dir=$(cd "${CURRENT_DIR}"/../../kernel/ && pwd)
+package_dir=$(cd "${CURRENT_DIR}"/../../../ && pwd)
+mkdir -p "${CURRENT_DIR}"/../../../kernel/
+kernel_dir=$(cd "${CURRENT_DIR}"/../../../kernel/ && pwd)
 chmod 755 "${kernel_dir}"
-workdir=$(cd "${CURRENT_DIR}"/../../Kbox_carrier/ && pwd)
+workdir=$(cd "${CURRENT_DIR}"/../../../compile/ && pwd)
 [ ! -e "${workdir}" ] && exit
 cpu_num=$(< /proc/cpuinfo grep -c "processor")
 
