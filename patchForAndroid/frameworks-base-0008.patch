@@ -1,4 +1,4 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the Apache License, Version 2.0 and
@@ -23,7 +23,6 @@ diff -uprN frameworks_base_old/core/java/android/app/ContextImpl.java frameworks
                  throw new SecurityException("MODE_WORLD_READABLE no longer supported");
              }
 diff --git a/core/java/android/app/ResourcesManager.java b/core/java/android/app/ResourcesManager.java
-index 30256b42e6a..93115190922 100644
 --- a/core/java/android/app/ResourcesManager.java
 +++ b/core/java/android/app/ResourcesManager.java
 @@ -121,11 +121,12 @@ public class ResourcesManager {
@@ -338,7 +337,7 @@ diff -uprN frameworks_base_old/core/java/huawei/mock/HwPathClassLoaderFactory.ja
 +import dalvik.system.PathClassLoader;
 +
 +/**
-+ * HwPathClassLoaderFactory，加载Hwmock类
++ * HwPathClassLoaderFactory,import Mock Class
 + *
 + * @since 2020-06-07
 + */
@@ -346,7 +345,7 @@ diff -uprN frameworks_base_old/core/java/huawei/mock/HwPathClassLoaderFactory.ja
 +    static PathClassLoader classloader = null;
 +
 +    /**
-+     * 类加载器
++     * Class Loader
 +     *
 +     * @param null no paras
 +     * @return ClassLoader ClassLoader
@@ -480,7 +479,7 @@ diff -uprN frameworks_base_old/core/jni/android_os_Debug.cpp frameworks_base_new
      if (maxNum > MEMINFO_COUNT) {
          maxNum = MEMINFO_COUNT;
      }
-+    // Mapped: -> 0
++    // tags[11] -> "Mapped:" , set meminfo->Mapped 0 in kbox
 +    mem[11] = 0;
      jlong* outArray = env->GetLongArrayElements(out, 0);
      if (outArray != NULL) {
@@ -984,7 +983,7 @@ diff -uprN frameworks_base_old/services/core/java/com/android/server/wm/WindowSt
 +            String name = attrs.getTitle().toString();
 +            Task task = mWin.getTask();
 +            if (task != null) {
-+                name = String.format("org.anbox.surface.%d", task.mTaskId);
++                name = String.format("org.kbox.surface.%d", task.mTaskId);
 +            }
 +
 +            mSurfaceController = new WindowSurfaceController(mSession.mSurfaceSession,
@@ -1241,7 +1240,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            // return readImeiFile();
 +            return HwMockFactory.creator().getMockData("WRITEIMEI");
 +        } catch (IOException e) {
-+            e.printStackTrace();
++            Log.e(TAG, "Error calling getDeviceId() ", e);
              return null;
          } catch (NullPointerException ex) {
              return null;
@@ -1269,7 +1268,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            // return readImeiFile();
 +            return HwMockFactory.creator().getMockData("WRITEIMEI");
 +        } catch (IOException e) {
-+            e.printStackTrace();
++            Log.e(TAG, "Error calling getDeviceId(int) ", e);
              return null;
          } catch (NullPointerException ex) {
              return null;
@@ -1293,7 +1292,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            // return readImeiFile();
 +            return HwMockFactory.creator().getMockData("WRITEIMEI");
 +        } catch (IOException e) {
-+            e.printStackTrace();
++            Log.e(TAG, "Error calling getImei() ", e);
 +            return null;
 +        } catch (NullPointerException ex) {
 +            return null;
@@ -1321,7 +1320,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            // return readImeiFile();
 +            return HwMockFactory.creator().getMockData("WRITEIMEI");
 +        } catch (IOException e) {
-+            e.printStackTrace();
++            Log.e(TAG, "Error calling getImei(int) ", e);
 +            return null;
 +        } catch (NullPointerException ex) {
 +            return null;
@@ -1353,12 +1352,12 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            //return telephony.getImeiForSlot(slotId, getOpPackageName());
 +            //return readImeiFile();
 +            return HwMockFactory.creator().getMockData("OP_ALPHACPH");
-+            } catch (IOException e) {
-+                e.printStackTrace();
-+                return null;
-+                } catch (NullPointerException ex) {
-+                   return null;
-+                   }
++        } catch (IOException e) {
++            Log.e(TAG, "Error calling getNetworkOperatorName(int) ", e);
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }
      }
  
      /**
@@ -1372,12 +1371,12 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            //return telephony.getImeiForSlot(slotId, getOpPackageName());
 +            //return readImeiFile();
 +            return HwMockFactory.creator().getMockData("OP_NUMERICCPH");
-+            } catch (IOException e) {
-+                e.printStackTrace();
-+                return null;
-+                } catch (NullPointerException ex) {
-+                    return null;
-+                    }
++        } catch (IOException e) {
++            Log.e(TAG, "Error calling getNetworkOperatorForPhone(int) ", e);
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }
       }
  
  
@@ -1398,12 +1397,12 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            //return telephony.getImeiForSlot(slotId, getOpPackageName());
 +            //return readImeiFile();
 +            return HwMockFactory.creator().getMockData("OP_COUNTRYCPH");
-+            } catch (IOException e) {
-+                e.printStackTrace();
-+                return null;
-+                } catch (NullPointerException ex) {
-+                    return null;
-+                    }
++        } catch (IOException e) {
++            Log.e(TAG, "Error calling getNetworkCountryIsoForPhone(int) ", e);
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }
      }
  
      /*
@@ -1421,7 +1420,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            //return readImeiFile();
 +            return HwMockFactory.creator().getMockData("SIM_NUMERICCPH");
 +               } catch (IOException e) {
-+                   e.printStackTrace();
++                   Log.e(TAG, "Error calling getSimOperatorNumericForPhone(int) ", e);
 +                   return null;
 +               } catch (NullPointerException ex) {
 +                   return null;
@@ -1443,12 +1442,12 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            //return telephony.getImeiForSlot(slotId, getOpPackageName());
 +            //return readImeiFile();
 +            return HwMockFactory.creator().getMockData("SIM_ALPHACPH");
-+            } catch (IOException e) {
-+                   e.printStackTrace();
-+                   return null;
-+            } catch (NullPointerException ex) {
-+                       return null;
-+            }               
++         } catch (IOException e) {
++             Log.e(TAG, "Error calling getSimOperatorNameForPhone(int) ", e);
++             return null;
++         } catch (NullPointerException ex) {
++             return null;
++         }               
 +
      }
  
@@ -1464,13 +1463,13 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +        try {
 +            //return telephony.getImeiForSlot(slotId, getOpPackageName());
 +            //return readImeiFile();
-+            return HwMockFactory.creator().getMockData("SIM_COUNTRYCPH");
-+               } catch (IOException e) {
-+                   e.printStackTrace();
-+                   return null;
-+               } catch (NullPointerException ex) {
-+                   return null;
-+               }
++             return HwMockFactory.creator().getMockData("SIM_COUNTRYCPH");
++         } catch (IOException e) {
++             Log.e(TAG, "Error calling getSimCountryIsoForPhone(int) ", e);
++             return null;
++         } catch (NullPointerException ex) {
++             return null;
++         }
      }
  
      /**
@@ -1495,7 +1494,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            try {
 +                return HwMockFactory.creator().getMockData("WRITESIMSERIAL");
 +            } catch (IOException e) {
-+                e.printStackTrace();
++                Log.e(TAG, "Error calling getSimSerialNumber(int) ", e);
 +                return null;
 +            } catch (NullPointerException ex) {
 +                return null;
@@ -1521,7 +1520,7 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +            // return readImsiFile();
 +            return HwMockFactory.creator().getMockData("WRITEIMSI");
 +        } catch (IOException e){
-+            e.printStackTrace();
++            Log.e(TAG, "Error calling getSubscriberId(int) ", e);
 +            return null;
 +        }catch (NullPointerException ex) {
 +        // This could happen before phone restarts due to crashing
@@ -1588,12 +1587,12 @@ diff -uprN frameworks_base_old/telephony/java/android/telephony/TelephonyManager
 +
 +        try {
 +            return HwMockFactory.creator().getMockData("WRITEPHONENUM");
-+               } catch (IOException e) {
-+                   e.printStackTrace();
-+                   return null;
-+               } catch (NullPointerException ex) {
-+                   return null;
-+               }
++        } catch (IOException e) {
++            Log.e(TAG, "Error calling getLine1Number(int) ", e);
++            return null;
++        } catch (NullPointerException ex) {
++            return null;
++        }
      }
  
      /**
@@ -1604,8 +1603,8 @@ diff -uNr frameworks_base_old/services/core/java/com/android/server/BatteryServi
      private static final long BATTERY_LEVEL_CHANGE_THROTTLE_MS = 60_000;
      private static final int MAX_BATTERY_LEVELS_QUEUE_SIZE = 100;
  
-+	/** full battery level is 100 */
-+	private static final int BATTERY_LEVEL_FULL = 100;
++    /** full battery level is 100 */
++    private static final int BATTERY_LEVEL_FULL = 100;
 +
      // Used locally for determining when to make a last ditch effort to log
      // discharge stats before the device dies.
@@ -1715,7 +1714,7 @@ diff -uNr frameworks_base_old/core/java/android/net/NetworkInfo.java frameworks_
 +import com.huawei.mock.HwMockFactory;
 +import com.huawei.mock.IMockAdapter;
 +import java.io.IOException;
-+
++import android.util.Log;
  import java.net.InetAddress;
  import java.net.Inet4Address;
  import java.net.UnknownHostException;
@@ -1814,8 +1813,8 @@ diff -uNr frameworks_base_old/core/java/android/net/NetworkInfo.java frameworks_
          dest.writeInt(mNetworkId);
 -        dest.writeInt(mRssi);
 -        dest.writeInt(mLinkSpeed);
-+		dest.writeInt(MID_RSSI);
-+		dest.writeInt(LINK_SPEED_KILO);
++        dest.writeInt(MID_RSSI);
++        dest.writeInt(LINK_SPEED_KILO);
          dest.writeInt(mFrequency);
          if (mIpAddress != null) {
              dest.writeByte((byte)1);
@@ -1862,11 +1861,12 @@ diff -uNr frameworks_base_old/services/core/java/com/android/server/Connectivity
 diff -Nurp frameworks_base_old/services/core/java/com/android/server/wm/TaskSnapshotSurface.java frameworks_base_new/services/core/java/com/android/server/wm/TaskSnapshotSurface.java
 --- frameworks_base_old/services/core/java/com/android/server/wm/TaskSnapshotSurface.java   2020-12-22 09:56:10.665146379 +0800
 +++ frameworks_base_new/services/core/java/com/android/server/wm/TaskSnapshotSurface.java   2020-10-19 09:38:23.000000000 +0800
-@@ -198,6 +198,7 @@ class TaskSnapshotSurface implements Sta
+@@ -198,6 +198,8 @@ class TaskSnapshotSurface implements Sta
              task.getBounds(taskBounds);
              currentOrientation = topFullscreenWindow.getConfiguration().orientation;
          }
-+       return null;/*
++       return null;
++       /*
          try {
              final int res = session.addToDisplay(window, window.mSeq, layoutParams,
                      View.GONE, token.getDisplayContent().getDisplayId(), tmpFrame, tmpRect, tmpRect,

@@ -1,5 +1,14 @@
 Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
 
 diff -uprN build_make_old/core/clang/config.mk build_make_new/core/clang/config.mk
 --- build_make_old/core/clang/config.mk	2020-07-16 22:34:19.052537213 +0800
@@ -59,8 +68,8 @@ diff -uprN build_make_old/target/product/core_minimal.mk build_make_new/target/p
  else
 -PRODUCT_BOOT_JARS += org.apache.http.legacy.boot
 +PRODUCT_BOOT_JARS += \
-+	org.apache.http.legacy.boot \
-+	hwmock
++    org.apache.http.legacy.boot \
++    hwmock
  endif
  
  ifeq ($(REMOVE_ATB_FROM_BCP),true)
@@ -107,3 +116,33 @@ diff -uprN build_make_old/target/product/core_tiny.mk build_make_new/target/prod
  echo "# end build properties"
  
  echo -e "\n# begin video_stream and instruction_stream build properties"
+diff -uprN a/core/main.mk b/core/main.mk
+--- a/core/main.mk	2021-11-12 07:35:00.911626882 +0000
++++ b/core/main.mk	2021-11-12 07:33:42.331623135 +0000
+@@ -276,7 +276,7 @@ ifneq (,$(user_variant))
+   ADDITIONAL_DEFAULT_PROPERTIES += security.perf_harden=1
+ 
+   ifeq ($(user_variant),user)
+-    ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=1
++    ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
+   endif
+ 
+   ifeq ($(user_variant),userdebug)
+@@ -284,7 +284,7 @@ ifneq (,$(user_variant))
+     tags_to_install += debug
+   else
+     # Disable debugging in plain user builds.
+-    enable_target_debugging :=
++    #enable_target_debugging :=
+   endif
+ 
+   # Disallow mock locations by default for user builds
+@@ -308,7 +308,8 @@ ifeq (true,$(strip $(enable_target_debug
+   INCLUDE_TEST_OTA_KEYS := true
+ else # !enable_target_debugging
+   # Target is less debuggable and adbd is off by default
+-  ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=0
++  ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
++  ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
+ endif # !enable_target_debugging
+

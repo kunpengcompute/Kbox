@@ -1,4 +1,4 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the Apache License, Version 2.0 and
@@ -190,3 +190,18 @@ index fd0b744..e2fe82a 100644
  
      DeviceHandler device_handler = CreateDeviceHandler();
      UeventListener uevent_listener;
+diff -uprN a/adb/Android.mk b/adb/Android.mk
+--- a/adb/Android.mk	2021-11-11 12:24:03.808333983 +0000
++++ b/adb/Android.mk	2021-11-11 12:31:30.692355292 +0000
+@@ -343,9 +343,9 @@ LOCAL_CFLAGS := \
+     -D_GNU_SOURCE \
+     -Wno-deprecated-declarations \
+ 
+-LOCAL_CFLAGS += -DALLOW_ADBD_NO_AUTH=$(if $(filter userdebug eng,$(TARGET_BUILD_VARIANT)),1,0)
++LOCAL_CFLAGS += -DALLOW_ADBD_NO_AUTH=$(if $(filter user userdebug eng,$(TARGET_BUILD_VARIANT)),1,0)
+ 
+-ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
++ifneq (,$(filter user userdebug eng,$(TARGET_BUILD_VARIANT)))
+ LOCAL_CFLAGS += -DALLOW_ADBD_DISABLE_VERITY=1
+ LOCAL_CFLAGS += -DALLOW_ADBD_ROOT=1
+ endif

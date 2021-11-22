@@ -1,5 +1,5 @@
  Mesa 3-D graphics library
- Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
 
 
@@ -327,8 +327,8 @@ diff -urN old/src/amd/vulkan/radv_image.c new/src/amd/vulkan/radv_image.c
  	/* If the image has an Android external format, pCreateInfo->format will be
  	 * VK_FORMAT_UNDEFINED. */
 diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.c
---- old/src/amd/vulkan/radv_meta_copy.c	2020-11-23 14:04:02.788137700 -0500
-+++ new/src/amd/vulkan/radv_meta_copy.c	2021-05-12 05:54:08.056633123 -0400
+--- old/src/amd/vulkan/radv_meta_copy.c	2021-11-04 09:16:13.502546539 +0000
++++ new/src/amd/vulkan/radv_meta_copy.c	2021-11-04 09:13:50.618552826 +0000
 @@ -23,6 +23,8 @@
  
  #include "radv_meta.h"
@@ -338,13 +338,16 @@ diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.
  
  static VkExtent3D
  meta_image_block_size(const struct radv_image *image)
-@@ -104,6 +106,28 @@
+@@ -104,6 +106,31 @@
  	};
  }
  
 +static size_t
 +radv_get_texel_count(const VkBufferImageCopy* pRegions, uint32_t regionCount, struct radv_image* image)
 +{
++	if (image == NULL) {
++		return 0;
++	}
 +	size_t w = 0;
 +	size_t h = 0;
 +
@@ -367,7 +370,7 @@ diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.
  static bool
  image_is_renderable(struct radv_device *device, struct radv_image *image)
  {
-@@ -120,6 +144,58 @@
+@@ -120,6 +147,58 @@
  	return true;
  }
  
@@ -426,7 +429,7 @@ diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.
  static void
  meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
                            struct radv_buffer* buffer,
-@@ -128,10 +204,17 @@
+@@ -128,10 +207,17 @@
                            uint32_t regionCount,
                            const VkBufferImageCopy* pRegions)
  {
@@ -444,7 +447,7 @@ diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.
  	/* The Vulkan 1.0 spec says "dstImage must have a sample count equal to
  	 * VK_SAMPLE_COUNT_1_BIT."
  	 */
-@@ -148,7 +231,62 @@
+@@ -148,7 +234,62 @@
  	 */
  	old_predicating = cmd_buffer->state.predicating;
  	cmd_buffer->state.predicating = false;
@@ -508,7 +511,7 @@ diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.
  	for (unsigned r = 0; r < regionCount; r++) {
  
  		/**
-@@ -205,11 +343,26 @@
+@@ -205,11 +346,26 @@
  			img_bsurf.current_layout = VK_IMAGE_LAYOUT_GENERAL;
  		}
  
@@ -537,7 +540,7 @@ diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.
  			.pitch = buf_extent_el.width,
  		};
  
-@@ -241,6 +394,8 @@
+@@ -241,6 +397,8 @@
  			 */
  			buf_bsurf.offset += buf_extent_el.width *
  			                    buf_extent_el.height * buf_bsurf.bs;
@@ -546,7 +549,7 @@ diff -urN old/src/amd/vulkan/radv_meta_copy.c new/src/amd/vulkan/radv_meta_copy.
  			img_bsurf.layer++;
  			if (image->type == VK_IMAGE_TYPE_3D)
  				slice_3d++;
-@@ -248,6 +403,12 @@
+@@ -248,6 +406,12 @@
  				slice_array++;
  		}
  	}
@@ -774,8 +777,8 @@ diff -urN old/src/gallium/drivers/radeon/radeon_winsys.h new/src/gallium/drivers
 +   if (cs == NULL ||
 +       cs->current.buf == NULL ||
 +       cs->current.cdw >= cs->current.max_dw) {
-+      ALOGE("radeon_emit Out-of-bounds access");      
-+      return;
++      ALOGE("radeon_emit Out-of-bounds access!! cs->current.cdw = %ld, \
++      and cs->current.max_dw = %ld", cs->current.cdw, cs->current.max_dw); 
 +   }
 +
     cs->current.buf[cs->current.cdw++] = value;
@@ -784,7 +787,7 @@ diff -urN old/src/gallium/drivers/radeon/radeon_winsys.h new/src/gallium/drivers
  static inline void radeon_emit_array(struct radeon_cmdbuf *cs, const uint32_t *values,
                                       unsigned count)
  {
-+   if (cs == NULL || values == NULL) {
++   if (cs == NULL || values == NULL || count < 0) {
 +       ALOGE("radeon_emit_array Out-of-bounds access!!");
 +       return;
 +   }

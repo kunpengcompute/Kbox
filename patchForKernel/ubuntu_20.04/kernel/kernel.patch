@@ -1,15 +1,3 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License version 2 and
-only version 2 as published by the Free Software Foundation.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-
 for kernel 5.4.30
 diff -Nur a/include/linux/memcontrol.h b/include/linux/memcontrol.h
 --- a/include/linux/memcontrol.h	2020-07-29 09:44:59.055491546 +0800

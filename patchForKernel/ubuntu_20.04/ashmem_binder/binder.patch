@@ -1,15 +1,3 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License version 2 and
-only version 2 as published by the Free Software Foundation.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-
 diff -Nur a/binder/binder_alloc.c b/binder/binder_alloc.c
 --- a/binder/binder_alloc.c	2020-10-31 16:29:01.046635602 +0800
 +++ b/binder/binder_alloc.c	2020-10-31 16:30:48.610907048 +0800

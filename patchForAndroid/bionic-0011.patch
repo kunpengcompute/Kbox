@@ -1,4 +1,4 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the Apache License, Version 2.0 and
@@ -14,7 +14,7 @@ Apache 2.0 for more details.
 diff -uprN bionic_old/libc/bionic/sysinfo.cpp bionic_new/libc/bionic/sysinfo.cpp
 --- bionic_old/libc/bionic/sysinfo.cpp	2020-07-16 22:32:45.928535976 +0800
 +++ bionic_new/libc/bionic/sysinfo.cpp	2020-07-16 22:32:02.508535400 +0800
-@@ -36,27 +36,21 @@
+@@ -36,27 +36,22 @@
  #include "private/get_cpu_count_from_string.h"
  #include "private/ScopedReaddir.h"
  
@@ -40,12 +40,13 @@ diff -uprN bionic_old/libc/bionic/sysinfo.cpp bionic_new/libc/bionic/sysinfo.cpp
 -    if (entry->d_type == DT_DIR && __matches_cpuN(entry->d_name)) {
 -      ++result;
 -    }
-+  char buf[512];
++  #define MAXBUF 512
++  char buf[MAXBUF];
 +  char *line;
 +  FILE *file = fopen("/proc/cpuinfo", "r");
 +  if (file) {
-+      while ((line = fgets(buf, 512, file))) {
-+          if (strncmp(line, "processor", 9) == 0) {
++      while ((line = fgets(buf, MAXBUF, file))) {
++          if (strncmp(line, "processor", 9) == 0) { // Compare the first 9 characters of line with string "processor"
 +              ++result;
 +          }
 +      }

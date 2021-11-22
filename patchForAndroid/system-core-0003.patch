@@ -1,4 +1,4 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the Apache License, Version 2.0 and
@@ -956,7 +956,7 @@ index dc36596b1..bcc7e46d1 100644
  #include <unistd.h>
  
  #include <android-base/file.h>
-@@ -35,268 +44,2002 @@
+@@ -35,268 +44,2021 @@
  #include <android-base/strings.h>
  
  #include <cutils/fs.h>
@@ -1352,7 +1352,7 @@ index dc36596b1..bcc7e46d1 100644
 + * or returns -1 if the path is too long for the provided buffer.
 + */
 +static ssize_t get_node_path_locked(struct node* node, char* buf, size_t bufsize) {
-+	const char* name;
++	const char* name = NULL;
 +	size_t namelen;
 +	if (node->graft_path) {
 +		name = node->graft_path;
@@ -1380,6 +1380,9 @@ index dc36596b1..bcc7e46d1 100644
 +		buf[pathlen++] = '/';
 +	}
 +
++	if (bufsize < pathlen + namelen + 1) {
++		return -1;
++	}
 +	memcpy(buf + pathlen, name, namelen + 1); /* include trailing \0 */
 +	return pathlen + namelen;
 +}
@@ -1395,6 +1398,9 @@ index dc36596b1..bcc7e46d1 100644
 +static char* find_file_within(const char* path, const char* name,
 +	char* buf, size_t bufsize, int search)
 +{
++    if (path == NULL || name == NULL  || buf == NULL) {
++        return NULL;
++    }
 +	size_t pathlen = strlen(path);
 +	size_t namelen = strlen(name);
 +	size_t childlen = pathlen + namelen + 1;
@@ -1592,6 +1598,7 @@ index dc36596b1..bcc7e46d1 100644
 +{
 +	struct node *node;
 +	size_t namelen = strlen(name);
++	size_t actuallen = strlen(actual_name);
 +
 +	// Detect overflows in the inode counter. "4 billion nodes should be enough
 +	// for everybody".
@@ -1611,13 +1618,13 @@ index dc36596b1..bcc7e46d1 100644
 +	}
 +	memcpy(node->name, name, namelen + 1);
 +	if (strcmp(name, actual_name)) {
-+		node->actual_name = (char *)malloc(namelen + 1);
++		node->actual_name = (char *)malloc(actuallen + 1);
 +		if (!node->actual_name) {
 +			free(node->name);
 +			free(node);
 +			return NULL;
 +		}
-+		memcpy(node->actual_name, actual_name, namelen + 1);
++		memcpy(node->actual_name, actual_name, actuallen + 1);
 +	}
 +	node->namelen = namelen;
 +	node->nid = ptr_to_id(node);
@@ -1635,43 +1642,53 @@ index dc36596b1..bcc7e46d1 100644
 +static int rename_node_locked(struct node *node, const char *name,
 +	const char* actual_name)
 +{
-+	size_t namelen = strlen(name);
-+	int need_actual_name = strcmp(name, actual_name);
++   size_t namelen = strlen(name);
++   int need_actual_name = strcmp(name, actual_name);
 +
-+	/* make the storage bigger without actually changing the name
-+	 * in case an error occurs part way */
-+	if (namelen > node->namelen) {
-+		char* new_name = (char *)realloc(node->name, namelen + 1);
-+		if (!new_name) {
-+			return -ENOMEM;
-+		}
-+		node->name = new_name;
-+		if (need_actual_name && node->actual_name) {
-+			char* new_actual_name = (char *)realloc(node->actual_name, namelen + 1);
-+			if (!new_actual_name) {
-+				return -ENOMEM;
-+			}
-+			node->actual_name = new_actual_name;
-+		}
-+	}
++   /* make the storage bigger without actually changing the name
++   * in case an error occurs part way */
++   if (namelen > node->namelen) {
++       char* new_name = (char *)malloc(namelen + 1);
++       if (!new_name) {
++           return -ENOMEM;
++       }
++       memcpy(new_name, node->name, node->namelen + 1);
++       char* tmp_name = node->name;
++       node->name = new_name;
++       free(tmp_name);
++       tmp_name = NULL;
++       if (need_actual_name && node->actual_name) {
++           char* new_actual_name = (char *)malloc(namelen + 1);
++           if (!new_actual_name) {
++               return -ENOMEM;
++           }
++           memcpy(new_actual_name, node->actual_name, node->namelen + 1);
++           char* tmp_actual_name = node->actual_name;
++           node->actual_name = new_actual_name; 
++           free(tmp_actual_name);
++           tmp_actual_name = NULL;
++       }
++   }
 +
-+	/* update the name, taking care to allocate storage before overwriting the old name */
-+	if (need_actual_name) {
-+		if (!node->actual_name) {
-+			node->actual_name = (char *)malloc(namelen + 1);
-+			if (!node->actual_name) {
-+				return -ENOMEM;
-+			}
-+		}
-+		memcpy(node->actual_name, actual_name, namelen + 1);
-+	}
-+	else {
-+		free(node->actual_name);
-+		node->actual_name = NULL;
-+	}
-+	memcpy(node->name, name, namelen + 1);
-+	node->namelen = namelen;
-+	return 0;
++   /* update the name, taking care to allocate storage before overwriting the old name */
++   if (need_actual_name) {
++       if (!node->actual_name) {
++           node->actual_name = (char *)malloc(namelen + 1);
++           if (!node->actual_name) {
++               return -ENOMEM;
++           }
++       }
++       memcpy(node->actual_name, actual_name, namelen + 1);
++   }
++   else {
++       if (!node->actual_name) {   
++           free(node->actual_name);
++           node->actual_name = NULL;
++       }
++   }
++   memcpy(node->name, name, namelen + 1);
++   node->namelen = namelen;
++   return 0;
 +}
 +
 +static struct node *lookup_node_by_id_locked(struct fuse *fuse, __u64 nid)
@@ -1733,23 +1750,23 @@ index dc36596b1..bcc7e46d1 100644
 +
 +static void fuse_reply(struct fuse *fuse, __u64 unique, void *data, int len)
 +{
-+	struct fuse_out_header hdr;
-+	struct iovec vec[2];
-+	int res;
++   struct fuse_out_header hdr;
++   struct iovec vec[2];
++   int res;
 +
-+	hdr.len = len + sizeof(hdr);
-+	hdr.error = 0;
-+	hdr.unique = unique;
++   hdr.len = len + sizeof(hdr);
++   hdr.error = 0;
++   hdr.unique = unique;
 +
-+	vec[0].iov_base = &hdr;
-+	vec[0].iov_len = sizeof(hdr);
-+	vec[1].iov_base = data;
-+	vec[1].iov_len = len;
++   vec[0].iov_base = &hdr;
++   vec[0].iov_len = sizeof(hdr);
++   vec[1].iov_base = data;
++   vec[1].iov_len = len;
 +
-+	res = writev(fuse->fd, vec, 2);
-+	if (res < 0) {
-+		// ERROR("*** REPLY FAILED *** %d\n", errno);
-+	}
++   res = writev(fuse->fd, vec, 2);
++   if (res < 0) {
++       LOG(ERROR) << "*** REPLY FAILED ***";
++   }
 +}
 +
 +static int fuse_reply_entry(struct fuse* fuse, __u64 unique,
@@ -2333,14 +2350,16 @@ index dc36596b1..bcc7e46d1 100644
 +}
 +
 +static int handle_release(struct fuse* fuse, struct fuse_handler* handler,
-+	const struct fuse_in_header* hdr, const struct fuse_release_in* req)
++   const struct fuse_in_header* hdr, const struct fuse_release_in* req)
 +{
-+	struct handle *h = (struct handle *)id_to_ptr(req->fh);
++   struct handle *h = (struct handle *)id_to_ptr(req->fh);
++   if (!h) {
++       return -ENOMEM;
++   }
 +
-+
-+	close(h->fd);
-+	free(h);
-+	return 0;
++   close(h->fd);
++   free(h);
++   return 0;
 +}
 +
 +static int handle_fsync(struct fuse* fuse, struct fuse_handler* handler,
@@ -3286,7 +3305,7 @@ diff -Nurp lmkd_old/lmkd/lmkd.c lmkd_new/lmkd/lmkd.c
 +            ALOGD("cgroup_memory: %s", cgroup_memory);
 +        }
 +        if ((res = pclose(fp)) == -1) {
-+            ALOGE("close /proc/self/cgroup popen err!\n");
++            ALOGE("close /proc/self/cgroup pclose err!\n");
 +            memset(cgroup_memory, 0, sizeof(cgroup_memory));
 +        } else {
 +            // replace "\n" -> "\0"
