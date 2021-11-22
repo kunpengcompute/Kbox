@@ -1,53 +1,118 @@
 Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
 
 diff --git a/power.c b/power.c
 index 10ba380..3841593 100644
 --- a/power.c
 +++ b/power.c
-@@ -28,6 +28,7 @@
+@@ -28,97 +28,18 @@
  #define LOG_TAG "power"
  #include <log/log.h>
- 
-+#if 0
- enum {
-     ACQUIRE_PARTIAL_WAKE_LOCK = 0,
-     RELEASE_WAKE_LOCK,
-@@ -80,10 +81,15 @@ initialize_fds(void)
-         g_initialized = 1;
-     }
- }
-+#endif
- 
+
+-enum {
+-    ACQUIRE_PARTIAL_WAKE_LOCK = 0,
+-    RELEASE_WAKE_LOCK,
+-    OUR_FD_COUNT
+-};
+-
+-const char * const OLD_PATHS[] = {
+-    "/sys/android_power/acquire_partial_wake_lock",
+-    "/sys/android_power/release_wake_lock",
+-};
+-
+-const char * const NEW_PATHS[] = {
+-    "/sys/power/wake_lock",
+-    "/sys/power/wake_unlock",
+-};
+-
+-//XXX static pthread_once_t g_initialized = THREAD_ONCE_INIT;
+-static int g_initialized = 0;
+-static int g_fds[OUR_FD_COUNT];
+-static int g_error = -1;
+-
+-static int
+-open_file_descriptors(const char * const paths[])
+-{
+-    int i;
+-    for (i=0; i<OUR_FD_COUNT; i++) {
+-        int fd = open(paths[i], O_RDWR | O_CLOEXEC);
+-        if (fd < 0) {
+-            g_error = -errno;
+-            fprintf(stderr, "fatal error opening \"%s\": %s\n", paths[i],
+-                strerror(errno));
+-            return -1;
+-        }
+-        g_fds[i] = fd;
+-    }
+-
+-    g_error = 0;
+-    return 0;
+-}
+-
+-static inline void
+-initialize_fds(void)
+-{
+-    // XXX: should be this:
+-    //pthread_once(&g_initialized, open_file_descriptors);
+-    // XXX: not this:
+-    if (g_initialized == 0) {
+-        if(open_file_descriptors(NEW_PATHS) < 0)
+-            open_file_descriptors(OLD_PATHS);
+-        g_initialized = 1;
+-    }
+-}
+
  int
  acquire_wake_lock(int lock, const char* id)
  {
-+    (void) id;
-+    (void) lock;
-+    return 1;
-+#if 0
-     initialize_fds();
- 
- //    ALOGI("acquire_wake_lock lock=%d id='%s'\n", lock, id);
-@@ -105,11 +111,15 @@ acquire_wake_lock(int lock, const char* id)
-     }
- 
-     return ret;
-+#endif
+-    initialize_fds();
+-
+-//    ALOGI("acquire_wake_lock lock=%d id='%s'\n", lock, id);
+-
+-    if (g_error) return g_error;
+-
+-    int fd;
+-    ssize_t ret;
+-
+-    if (lock != PARTIAL_WAKE_LOCK) {
+-        return -EINVAL;
+-    }
+-
+-    fd = g_fds[ACQUIRE_PARTIAL_WAKE_LOCK];
+-
+-    ret = write(fd, id, strlen(id));
+-    if (ret < 0) {
+-        return -errno;
+-    }
+-
+-    return ret;
++     (void) id;
++     (void) lock;
++     return 1;
  }
- 
+
  int
  release_wake_lock(const char* id)
  {
-+    (void) id;
-+    return 1;
-+#if 0
-     initialize_fds();
- 
- //    ALOGI("release_wake_lock id='%s'\n", id);
-@@ -121,4 +131,5 @@ release_wake_lock(const char* id)
-         return -errno;
-     }
-     return len;
-+#endif
+-    initialize_fds();
+-
+-//    ALOGI("release_wake_lock id='%s'\n", id);
+-
+-    if (g_error) return g_error;
+-
+-    ssize_t len = write(g_fds[RELEASE_WAKE_LOCK], id, strlen(id));
+-    if (len < 0) {
+-        return -errno;
+-    }
+-    return len;
++     (void) id;
++     return 1;
  }

@@ -33,7 +33,7 @@ function get_cpu_volume() {
     # SERVER_CPU_TAG_NUM：服务器中的CPU号
     # CONTAINER_CPU_TAG_NUM：映射到容器中的CPU号
     local SERVER_CPU_TAG_NUM=$1 CONTAINER_CPU_TAG_NUM=$2
-    echo " --volume=/sys/devices/system/cpu/cpu$SERVER_CPU_TAG_NUM:/sys/devices/system/cpu/cpu$CONTAINER_CPU_TAG_NUM:rw "
+    echo " --volume=/sys/devices/system/cpu/cpu$SERVER_CPU_TAG_NUM:/sys/devices/system/cpu/cpu$CONTAINER_CPU_TAG_NUM:ro "
 }
 
 function check_paras() {
@@ -256,13 +256,31 @@ function start_box() {
     local RUN_OPTION=""
     RUN_OPTION+=" -d "
     RUN_OPTION+=" -it "
-    RUN_OPTION+=" --cap-add=ALL "
+    RUN_OPTION+=" --cap-drop=ALL "
+    RUN_OPTION+=" --cap-add=SETPCAP "
+    RUN_OPTION+=" --cap-add=AUDIT_WRITE "
+    RUN_OPTION+=" --cap-add=SYS_CHROOT "
+    RUN_OPTION+=" --cap-add=CHOWN "
+    RUN_OPTION+=" --cap-add=DAC_OVERRIDE "
+    RUN_OPTION+=" --cap-add=FOWNER "
+    RUN_OPTION+=" --cap-add=SETGID "
+    RUN_OPTION+=" --cap-add=SETUID "
+    RUN_OPTION+=" --cap-add=SYSLOG "
+    RUN_OPTION+=" --cap-add=SYS_ADMIN "
+    RUN_OPTION+=" --cap-add=WAKE_ALARM "
+    RUN_OPTION+=" --cap-add=SYS_PTRACE "
+    RUN_OPTION+=" --cap-add=BLOCK_SUSPEND "    
+    RUN_OPTION+=" --cap-add=MKNOD "
+    RUN_OPTION+=" --cap-add=KILL "
+    RUN_OPTION+=" --cap-add=NET_RAW "
+    RUN_OPTION+=" --cap-add=NET_ADMIN "
     RUN_OPTION+=" --security-opt="apparmor=unconfined" "
-    RUN_OPTION+=" --security-opt="seccomp=unconfined" "
+    RUN_OPTION+=" --security-opt=no-new-privileges "
     RUN_OPTION+="--name ${KBOX_NAME}"
     RUN_OPTION+=" -e DOCKER_NAME=${KBOX_NAME} "
     RUN_OPTION+=" -e PATH=/system/bin:/system/xbin "
     RUN_OPTION+=" --cidfile ${HOOK_PATH}/${KBOX_NAME}/docker_id.cid "
+    RUN_OPTION+=" --cpu-shares=$(lscpu | grep -w "CPU(s)" | head -n 1 | awk '{print $2}') "
     
     local CPU NUMA TEMP
     for CPU in ${CPUS[@]}; do
@@ -293,27 +311,27 @@ function start_box() {
     RUN_OPTION+=" --volume=$KBOX_DATA_PATH/data:/data:rw "
     RUN_OPTION+=" --volume=$INPUT_EVENT_PATH/event0:/dev/input/event0:rw "
     RUN_OPTION+=" --volume=$INPUT_EVENT_PATH/event1:/dev/input/event1:rw "
-    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/cpuinfo:/proc/cpuinfo:rw "
-    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/diskstats:/proc/diskstats:rw "
-    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/meminfo:/proc/meminfo:rw "
-    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/stat:/proc/stat:rw "
-    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/swaps:/proc/swaps:rw "
-    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/uptime:/proc/uptime:rw "
+    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/cpuinfo:/proc/cpuinfo:ro "
+    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/diskstats:/proc/diskstats:ro "
+    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/meminfo:/proc/meminfo:ro "
+    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/stat:/proc/stat:ro "
+    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/swaps:/proc/swaps:ro "
+    RUN_OPTION+=" --volume=$(get_lxcfs_path)/proc/uptime:/proc/uptime:ro "
     RUN_OPTION+=" --volume=/var/run/docker/cpus/${KBOX_NAME}:/sys/devices/system/cpu:rw "
     RUN_OPTION+=" --volume=$KBOX_DATA_PATH/storage_size:/storage_size:rw "
     for ((i=0; i<${#CPUS[@]}; i++))
     do
         RUN_OPTION+=$(get_cpu_volume ${CPUS[$i]} $i)
     done
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/online:/sys/devices/system/cpu/online:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/modalias:/sys/devices/system/cpu/modalias:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/cpufreq:/sys/devices/system/cpu/cpufreq:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/hotplug:/sys/devices/system/cpu/hotplug:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/power:/sys/devices/system/cpu/power:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/uevent:/sys/devices/system/cpu/uevent:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/isolated:/sys/devices/system/cpu/isolated:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/offline:/sys/devices/system/cpu/offline:rw "
-    RUN_OPTION+=" --volume=/sys/devices/system/cpu/cpuidle:/sys/devices/system/cpu/cpuidle:rw "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/online:/sys/devices/system/cpu/online:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/modalias:/sys/devices/system/cpu/modalias:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/cpufreq:/sys/devices/system/cpu/cpufreq:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/hotplug:/sys/devices/system/cpu/hotplug:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/power:/sys/devices/system/cpu/power:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/uevent:/sys/devices/system/cpu/uevent:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/isolated:/sys/devices/system/cpu/isolated:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/offline:/sys/devices/system/cpu/offline:ro "
+    RUN_OPTION+=" --volume=/sys/devices/system/cpu/cpuidle:/sys/devices/system/cpu/cpuidle:ro "
     local PORT
     for PORT in ${PORTS[@]}; do
         RUN_OPTION+=" -p $PORT "    
@@ -326,31 +344,37 @@ function start_box() {
 
 function delete_box() {
     local KBOX_NAME=$1
+    local RET="true"
     set +e
     # 删除容器
     if [ -n "$(docker ps -a --format {{.Names}} | grep "$KBOX_NAME$")" ]; then
-        docker rm -f $KBOX_NAME
-        echo "remove docker container $KBOX_NAME success!"
+        docker kill $KBOX_NAME > /dev/null 2>&1
+        docker rm  $KBOX_NAME > /dev/null 2>&1
+        [ $? -ne 0 ] && echo "fail to remove docker container $KBOX_NAME!" && RET="fail"
     fi
 
     # 删除数据文件
     if [ -d /root/mount/data/$KBOX_NAME ]; then
-        umount /root/mount/data/$KBOX_NAME
+        umount /root/mount/data/$KBOX_NAME > /dev/null 2>&1
         [ $? -ne 0 ] && echo "$KBOX_NAME is already umounted!"
-        rm -rf /root/mount/data/$KBOX_NAME
-        echo "remove data files /root/mount/data/$KBOX_NAME success!"
+        rm -rf /root/mount/data/$KBOX_NAME > /dev/null 2>&1
+        [ $? -ne 0 ] && echo "fail to remove data files /root/mount/data/$KBOX_NAME !" && RET="fail"
     fi
 
     # 删除数据img文件
     if [ -e /root/mount/img/$KBOX_NAME.img ]; then
-        rm /root/mount/img/$KBOX_NAME.img
-        echo "remove image file /root/mount/img/$KBOX_NAME.img success!"
+        rm -rf /root/mount/img/$KBOX_NAME.img > /dev/null 2>&1
+        [ $? -ne 0 ] && echo "fail to remove image file /root/mount/img/$KBOX_NAME.img !" && RET="fail"
     fi
 
     # 删除input event path
     if [ -d /var/run/$KBOX_NAME ]; then
-        rm -rf /var/run/${KBOX_NAME}
-        echo "remove event path /var/run/${KBOX_NAME} success!"
+        rm -rf /var/run/${KBOX_NAME} > /dev/null 2>&1
+        [ $? -ne 0 ] && echo "fail to remove event path /var/run/${KBOX_NAME} !" && RET="fail"
+    fi
+
+    if [ $RET == "true" ];then
+        echo "container ${KBOX_NAME} is deleted successfully."
     fi
 }
 

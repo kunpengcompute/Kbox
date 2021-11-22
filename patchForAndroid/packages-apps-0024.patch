@@ -1,5 +1,13 @@
 Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
 
 diff -Nurp packages_apps_old/Settings/src/com/android/settings/AirplaneModeEnabler.java packages_apps_new/Settings/src/com/android/settings/AirplaneModeEnabler.java
 --- packages_apps_old/Settings/src/com/android/settings/AirplaneModeEnabler.java	2021-02-02 17:23:35.112526772 +0800
@@ -52,8 +60,8 @@ diff -Nurp packages_apps_old/Settings/src/com/android/settings/print/PrintSettin
      @Override
      public void onStart() {
 +        // mPrintManager is null, not response
-+        Log.e("PrintSettingPreferenceController", "mPrintManager" + mPrintManager + "mPrintManager is null " + (mPrintManager==null));
 +        if (mPrintManager == null) {
++            Log.e("PrintSettingPreferenceController", " mPrintManager is null ");
 +            return;
 +        }
          mPrintManager.addPrintJobStateChangeListener(this);

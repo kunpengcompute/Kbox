@@ -1,27 +1,55 @@
 Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
 
 diff --git a/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java b/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java
 index 6b623f4..d1d2125 100644
 --- a/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java
 +++ b/net/ethernet/java/com/android/server/ethernet/EthernetConfigStore.java
-@@ -21,6 +21,7 @@ import android.net.IpConfiguration;
+@@ -21,6 +21,8 @@ import android.net.IpConfiguration;
  import android.os.Environment;
  import android.util.ArrayMap;
  
 +import com.huawei.mock.HwMockFactory;
++import com.huawei.mock.IMockAdapter;
  import com.android.server.net.IpConfigStore;
  
  
-@@ -43,7 +44,7 @@ public class EthernetConfigStore {
+@@ -42,16 +44,18 @@ public class EthernetConfigStore {
+ 
      public void read() {
          synchronized (mSync) {
-             ArrayMap<String, IpConfiguration> configs =
+-            ArrayMap<String, IpConfiguration> configs =
 -                    IpConfigStore.readIpConfigurations(ipConfigFile);
-+                    HwMockFactory.creator().readIpAndProxyFromIfconfig();
- 
-             // This configuration may exist in old file versions when there was only a single active
-             // Ethernet interface.
+-
+-            // This configuration may exist in old file versions when there was only a single active
+-            // Ethernet interface.
+-            if (configs.containsKey("0")) {
+-                mIpConfigurationForDefaultInterface = configs.remove("0");
++            IMockAdapter iAdapter = HwMockFactory.creator();
++            if (iAdapter != null) {
++                ArrayMap<String, IpConfiguration> configs = iAdapter.readIpAndProxyFromIfconfig();
++                // This configuration may exist in old file versions when there was only a single active
++                // Ethernet interface.
++                if (configs.containsKey("0")) {
++                    mIpConfigurationForDefaultInterface = configs.remove("0");
++                }
++                mIpConfigurations = configs;
++            } else {
++                throw new Error("iAdapter is null");
+             }
+-
+-            mIpConfigurations = configs;
+         }
+     }
+               
 diff --git a/net/wifi/service/java/com/android/server/wifi/WifiSettingsStore.java b/net/wifi/service/java/com/android/server/wifi/WifiSettingsStore.java
 index 40ae05c8d..5852d66af 100644
 --- a/net/wifi/service/java/com/android/server/wifi/WifiSettingsStore.java
@@ -90,12 +118,13 @@ index 0f431efef..11f6aeefe 100644
              }
          }
 
---- a/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java	2020-07-11 12:42:44.000000000 +0800
-+++ b/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java	2020-11-13 16:44:53.803261745 +0800
+diff --git a/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java b/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java
+--- a/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java	2021-11-18 21:41:13.888628903 +0000
++++ b/net/wifi/service/java/com/android/server/wifi/WifiServiceImpl.java	2021-11-18 21:35:50.500643131 +0000
 @@ -105,6 +105,9 @@ import com.android.server.wifi.util.Gene
  import com.android.server.wifi.util.WifiHandler;
  import com.android.server.wifi.util.WifiPermissionsUtil;
-
+ 
 +import com.huawei.mock.HwMockFactory;
 +import com.huawei.mock.IMockAdapter;
 +
@@ -105,7 +134,7 @@ index 0f431efef..11f6aeefe 100644
 @@ -147,6 +150,8 @@ public class WifiServiceImpl extends IWi
      // Max wait time for posting blocking runnables
      private static final int RUN_WITH_SCISSORS_TIMEOUT_MILLIS = 4000;
-
+ 
 +    private static final int INFO_LESE_DURATION = 1800;
 +
      final WifiStateMachine mWifiStateMachine;
@@ -119,15 +148,21 @@ index 0f431efef..11f6aeefe 100644
          enforceAccessPermission();
          if (mVerboseLoggingEnabled) {
              mLog.info("getDhcpInfo uid=%").c(Binder.getCallingUid()).flush();
-@@ -2251,7 +2257,9 @@ public class WifiServiceImpl extends IWi
-             info.serverAddress = NetworkUtils.inetAddressToInt(serverAddress);
+@@ -2252,7 +2258,16 @@ public class WifiServiceImpl extends IWi
          }
          info.leaseDuration = dhcpResults.leaseDuration;
--
+ 
+-        return info;
 +        Deleted for Kbox end */
 +
-+        DhcpInfo info = HwMockFactory.creator().setDhcpConfig();
-         return info;
++       DhcpInfo info = new DhcpInfo();
++        IMockAdapter iAdapter = HwMockFactory.creator();
++        if (iAdapter != null) {
++            info = iAdapter.setDhcpConfig();
++        }  else {
++            throw new Error("iAdapter is null");
++        }
++       return info;
      }
-
-
+ 
+     /**

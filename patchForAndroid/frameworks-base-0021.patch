@@ -1,4 +1,4 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the Apache License, Version 2.0 and
@@ -296,52 +296,48 @@ diff -Nurp a/services/core/java/com/android/server/am/PreBootBroadcaster.java b/
                  case MSG_SHOW:
                      final CharSequence title = context
                              .getText(R.string.android_upgrading_notification_title);
-diff -uprN a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java
---- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java	2021-07-02 10:50:18.837555322 +0800
-+++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java	2021-07-02 10:47:12.493562218 +0800
-@@ -325,7 +325,7 @@ public abstract class PanelView extends
-                 }
-                 if (isFullyCollapsed() && !mHeadsUpManager.hasPinnedHeadsUp()
-                         && !mStatusBar.isBouncerShowing()) {
--                    startOpening(event);
-+                    //startOpening(event); //stop drop-down menu
-                 }
-                 break;
+diff -urpN a/packages/SystemUI/src/com/android/systemui/qs/QSFooterImpl.java b/packages/SystemUI/src/com/android/systemui/qs/QSFooterImpl.java
+--- a/packages/SystemUI/src/com/android/systemui/qs/QSFooterImpl.java	2021-08-13 10:33:46.000000000 +0800
++++ b/packages/SystemUI/src/com/android/systemui/qs/QSFooterImpl.java	2021-11-12 17:23:06.010568451 +0800
+@@ -283,7 +283,8 @@ public class QSFooterImpl extends FrameL
+                 TunerService.isTunerEnabled(mContext) ? View.VISIBLE : View.INVISIBLE);
+         final boolean isDemo = UserManager.isDeviceInDemoMode(mContext);
+         mMultiUserSwitch.setVisibility(showUserSwitcher(isDemo) ? View.VISIBLE : View.INVISIBLE);
+-        mEdit.setVisibility(isDemo || !mExpanded ? View.INVISIBLE : View.VISIBLE);
++        //mEdit.setVisibility(isDemo || !mExpanded ? View.INVISIBLE : View.VISIBLE);
++        mEdit.setVisibility(View.INVISIBLE);//不显示下拉菜单里面的编辑按钮
+         mSettingsButton.setVisibility(isDemo || !mExpanded ? View.INVISIBLE : View.VISIBLE);
+     }
  
-@@ -348,7 +348,7 @@ public abstract class PanelView extends
-                 }
-                 break;
-             case MotionEvent.ACTION_MOVE:
--                trackMovement(event);
-+                //trackMovement(event); //stop drop-down menu
-                 float h = y - mInitialTouchY;
- 
-                 // If the panel was collapsed when touching, we only need to check for the
-@@ -387,13 +387,13 @@ public abstract class PanelView extends
-                 }
-                 if (!mJustPeeked && (!mGestureWaitForTouchSlop || mTracking) &&
-                         !isTrackingBlocked()) {
--                    setExpandedHeightInternal(newHeight);
-+                   //etExpandedHeightInternal(newHeight); //stop drop-down menu
-                 }
-                 break;
- 
-             case MotionEvent.ACTION_UP:
-             case MotionEvent.ACTION_CANCEL:
--                trackMovement(event);
-+                //trackMovement(event); //stop drop-down menu
-                 endMotionEvent(event, x, y, false /* forceCancel */);
-                 break;
+diff -urpN a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java	2021-08-13 10:33:46.000000000 +0800
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java	2021-11-12 16:22:53.116106877 +0800
+@@ -986,15 +986,16 @@ public class StatusBar extends SystemUI
+                         mBrightnessMirrorVisible = visible;
+                         updateScrimController();
+                     });
+-            fragmentHostManager.addTagListener(QS.TAG, (tag, f) -> {
+-                QS qs = (QS) f;
+-                if (qs instanceof QSFragment) {
+-                    ((QSFragment) qs).setHost(qsh);
+-                    mQSPanel = ((QSFragment) qs).getQsPanel();
+-                    mQSPanel.setBrightnessMirror(mBrightnessMirrorController);
+-                    mKeyguardStatusBar.setQSPanel(mQSPanel);
+-                }
+-            });
++         // 不显示下拉菜单QuickSettings里面的按钮
++         //   fragmentHostManager.addTagListener(QS.TAG, (tag, f) -> {
++         //       QS qs = (QS) f;
++         //       if (qs instanceof QSFragment) {
++         //           ((QSFragment) qs).setHost(qsh);
++         //           mQSPanel = ((QSFragment) qs).getQsPanel();
++         //           mQSPanel.setBrightnessMirror(mBrightnessMirrorController);
++         //           mKeyguardStatusBar.setQSPanel(mQSPanel);
++         //       }
++         //   });
          }
-@@ -493,7 +493,7 @@ public abstract class PanelView extends
-             long timePassed = SystemClock.uptimeMillis() - mDownTime;
-             if (timePassed < ViewConfiguration.getLongPressTimeout()) {
-                 // Lets show the user that he can actually expand the panel
--                runPeekAnimation(PEEK_ANIMATION_DURATION, getPeekHeight(), true /* collapseWhenFinished */);
-+                //runPeekAnimation(PEEK_ANIMATION_DURATION, getPeekHeight(), true /* collapseWhenFinished */); //stop drop-down menu
-             } else {
-                 // We need to collapse the panel since we peeked to the small height.
-                 postOnAnimation(mPostCollapseRunnable);
+ 
+         mReportRejectedTouch = mStatusBarWindow.findViewById(R.id.report_rejected_touch);
 diff -urpN a/media/java/android/media/AudioSystem.java b/media/java/android/media/AudioSystem.java
 --- a/media/java/android/media/AudioSystem.java	2021-07-27 18:03:45.000000000 +0800
 +++ b/media/java/android/media/AudioSystem.java	2021-07-29 19:32:22.187172539 +0800

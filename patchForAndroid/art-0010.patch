@@ -1,5 +1,14 @@
 Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
+
 
 diff -uprN art_old/dex2oat/Android.bp art_new/dex2oat/Android.bp
 --- art_old/dex2oat/Android.bp	2020-07-16 22:31:00.220534573 +0800

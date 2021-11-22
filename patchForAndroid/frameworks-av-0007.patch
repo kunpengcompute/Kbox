@@ -1,11 +1,19 @@
 Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
 
 diff -uprN frameworks_av_old/camera/cameraserver/Android.mk frameworks_av_new/camera/cameraserver/Android.mk
 --- frameworks_av_old/camera/cameraserver/Android.mk	2020-07-16 22:40:21.372542024 +0800
 +++ frameworks_av_new/camera/cameraserver/Android.mk	2020-07-16 22:41:25.000542868 +0800
 @@ -33,7 +33,8 @@ LOCAL_SHARED_LIBRARIES := \
- 	android.hardware.camera.device@3.2
+     android.hardware.camera.device@3.2
  
  LOCAL_MODULE:= cameraserver
 -LOCAL_32_BIT_ONLY := true
@@ -78,17 +86,6 @@ index 657a05b..970449e 100644
      {
          switch (mColorFormat) {
              case OMX_COLOR_FormatYUV420Planar:
-diff -uprN frameworks_av_old/services/mediacodec/Android.mk frameworks_av_new/services/mediacodec/Android.mk
---- frameworks_av_old/services/mediacodec/Android.mk	2020-07-16 22:40:21.532542026 +0800
-+++ frameworks_av_new/services/mediacodec/Android.mk	2020-07-16 22:41:25.644542877 +0800
-@@ -51,6 +51,7 @@ LOCAL_MODULE := android.hardware.media.o
- LOCAL_MODULE_RELATIVE_PATH := hw
- LOCAL_VENDOR_MODULE := true
- LOCAL_32_BIT_ONLY := true
-+#LOCAL_32_BIT_ONLY := false
- # Since this is 32-bit-only module, only 32-bit version of the codecs are installed.
- # TODO(b/72343507): eliminate the need for manually adding .vendor suffix. This should be done
- # by the build system.
 diff --git a/services/mediacodec/seccomp_policy/mediacodec-arm.policy b/services/mediacodec/seccomp_policy/mediacodec-arm.policy
 index 6ec8895787..12c267fc2c 100644
 --- a/services/mediacodec/seccomp_policy/mediacodec-arm.policy

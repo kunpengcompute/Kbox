@@ -43,8 +43,10 @@ function aosp_compile(){
     cd "${x86_workdir}"/aosp || exit
     [ -e "${x86_workdir}" ] && rm -rf "${x86_workdir}"/aosp/out
     [ -e "${x86_workdir}" ] && rm -rf "${x86_workdir}"/aosp/create-package.sh
+    # 编译前修改文件系统为读写模式，否则视频流无法出流
+    sed -i 's|mount rootfs rootfs / remount bind ro|mount rootfs rootfs / remount bind rw|' system/core/rootdir/init.rc
     source build/envsetup.sh || exit
-    lunch kbox_arm64-userdebug || exit
+    lunch kbox_arm64-user || exit
     export LC_ALL=C
     echo "2" > /proc/sys/kernel/randomize_va_space  #可信需求
     make clean && make -j${cpu_num}

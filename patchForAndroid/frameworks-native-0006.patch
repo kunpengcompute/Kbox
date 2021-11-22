@@ -1,4 +1,4 @@
-Copyright (C) 2021. Huawei Technologies Co., Ltd. 
+Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the Apache License, Version 2.0 and
@@ -29,24 +29,56 @@ diff --git a/cmds/installd/InstalldNativeService.cpp b/cmds/installd/InstalldNat
 index 860a68b27..80c15d746 100644
 --- a/cmds/installd/InstalldNativeService.cpp
 +++ b/cmds/installd/InstalldNativeService.cpp
-@@ -295,6 +295,12 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */
+@@ -295,47 +295,11 @@
   */
  static int restorecon_app_data_lazy(const std::string& path, const std::string& seInfo, uid_t uid,
          bool existing) {
+-    int res = 0;
+-    char* before = nullptr;
+-    char* after = nullptr;
+-
+-    // Note that SELINUX_ANDROID_RESTORECON_DATADATA flag is set by
+-    // libselinux. Not needed here.
+-
+-    if (lgetfilecon(path.c_str(), &before) < 0) {
+-        PLOG(ERROR) << "Failed before getfilecon for " << path;
+-        goto fail;
+-    }
+-    if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid, 0) < 0) {
+-        PLOG(ERROR) << "Failed top-level restorecon for " << path;
+-        goto fail;
+-    }
+-    if (lgetfilecon(path.c_str(), &after) < 0) {
+-        PLOG(ERROR) << "Failed after getfilecon for " << path;
+-        goto fail;
+-    }
+-
+-    // If the initial top-level restorecon above changed the label, then go
+-    // back and restorecon everything recursively
+-    if (strcmp(before, after)) {
+-        if (existing) {
+-            LOG(DEBUG) << "Detected label change from " << before << " to " << after << " at "
+-                    << path << "; running recursive restorecon";
+-        }
+-        if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
+-                SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
+-            PLOG(ERROR) << "Failed recursive restorecon for " << path;
+-            goto fail;
+-        }
+-    }
+-
+-    goto done;
+-fail:
+-    res = -1;
+-done:
+-    free(before);
+-    free(after);
+-    return res;
 +    (void) path;
 +    (void) seInfo;
 +    (void) uid;
 +    (void) existing;
 +    return 0;
-+#if 0
-     int res = 0;
-     char* before = nullptr;
-     char* after = nullptr;
-@@ -336,6 +342,7 @@ done:
-     free(before);
-     free(after);
-     return res;
-+#endif
  }
 
  static int restorecon_app_data_lazy(const std::string& parent, const char* name,
@@ -54,34 +86,60 @@ diff --git a/opengl/libs/EGL/Loader.cpp b/opengl/libs/EGL/Loader.cpp
 index 91a34558a..4ce3f052d 100644
 --- a/opengl/libs/EGL/Loader.cpp
 +++ b/opengl/libs/EGL/Loader.cpp
-@@ -73,6 +73,7 @@ Loader& Loader::getInstance() {
+@@ -73,40 +73,6 @@
      return loader;
  }
 
-+#if 0
- /* This function is called to check whether we run inside the emulator,
-  * and if this is the case whether GLES GPU emulation is supported.
-  *
-@@ -107,6 +108,7 @@ checkGlesEmulationStatus(void)
-     property_get("qemu.gles",prop,"0");
-     return atoi(prop);
- }
-+#endif
+-/* This function is called to check whether we run inside the emulator,
+- * and if this is the case whether GLES GPU emulation is supported.
+- *
+- * Returned values are:
+- *  -1   -> not running inside the emulator
+- *   0   -> running inside the emulator, but GPU emulation not supported
+- *   1   -> running inside the emulator, GPU emulation is supported
+- *          through the "emulation" host-side OpenGL ES implementation.
+- *   2   -> running inside the emulator, GPU emulation is supported
+- *          through a guest-side vendor driver's OpenGL ES implementation.
+- */
+-static int
+-checkGlesEmulationStatus(void)
+-{
+-    /* We're going to check for the following kernel parameters:
+-     *
+-     *    qemu=1                      -> tells us that we run inside the emulator
+-     *    android.qemu.gles=<number>  -> tells us the GLES GPU emulation status
+-     *
+-     * Note that we will return <number> if we find it. This let us support
+-     * more additionnal emulation modes in the future.
+-     */
+-    char  prop[PROPERTY_VALUE_MAX];
+-    int   result = -1;
+-
+-    /* First, check for qemu=1 */
+-    property_get("ro.kernel.qemu",prop,"0");
+-    if (atoi(prop) != 1)
+-        return -1;
+-
+-    /* We are in the emulator, get GPU status value */
+-    property_get("qemu.gles",prop,"0");
+-    return atoi(prop);
+-}
 
  static void* do_dlopen(const char* path, int mode) {
      ATRACE_CALL();
-@@ -323,13 +325,18 @@ static void* load_system_driver(const char* kind) {
+@@ -323,13 +289,18 @@
      public:
          static std::string find(const char* kind) {
              std::string result;
 -            int emulationStatus = checkGlesEmulationStatus();
+-            switch (emulationStatus) {
 +            // int emulationStatus = checkGlesEmulationStatus();
 +            // video stream use 0(default)
 +            // instruction stream use 1
 +            char prop[PROPERTY_VALUE_MAX];
 +            property_get("ro.kernel.kbox", prop, "0");
 +            int emulationStatus = std::stoi(prop);
-             switch (emulationStatus) {
++           switch (emulationStatus) {
                  case 0:
  #if defined(__LP64__)
 -                    result = "/vendor/lib64/egl/libGLES_android.so";
@@ -95,51 +153,40 @@ index 91a34558a..4ce3f052d 100644
 diff -uNr frameworks_old/opengl/libs/EGL/eglApi.cpp frameworks_new/opengl/libs/EGL/eglApi.cpp
 --- frameworks_old/opengl/libs/EGL/eglApi.cpp	2020-10-29 14:46:53.897273771 +0800
 +++ frameworks_new/opengl/libs/EGL/eglApi.cpp	2020-10-29 15:07:42.037229699 +0800
-@@ -55,6 +55,36 @@
-
- using nsecs_t = int64_t;
-
-+#define CALL_FREQ(FUNC_NAME) \
-+    do { \
-+        static struct timeval t_start_##FUNC_NAME,t_end_##FUNC_NAME;  \
-+        static long long last_t_##FUNC_NAME = 0;                      \
-+        static int frame_cnt_##FUNC_NAME = 0;                         \
-+        long long current_t = 0;                                      \
-+        long long diff_t = 0;                                         \
-+        double frequent = 0;                                          \
-+        struct timeval t_time;                                        \
-+        frame_cnt_##FUNC_NAME++;                                      \
-+        if(last_t_##FUNC_NAME == 0)                                   \
-+        {                                                             \
-+            gettimeofday (&t_time , NULL);                            \
-+            last_t_##FUNC_NAME = t_time.tv_sec*1000000 + t_time.tv_usec; \
-+        }                                                             \
-+        else                                                          \
-+        {                                                             \
-+            if(frame_cnt_##FUNC_NAME == 100)                          \
-+            {                                                         \
-+                gettimeofday (&t_time , NULL);                        \
-+                current_t = t_time.tv_sec*1000000 + t_time.tv_usec;   \
-+                diff_t = current_t - last_t_##FUNC_NAME;              \
-+                frequent = (100*1000000.0) / diff_t;                  \
-+                ALOGD("%s called_frequent diff_t=%lld %.1f\n",#FUNC_NAME,diff_t,frequent); \
-+                last_t_##FUNC_NAME = current_t;                       \
-+                frame_cnt_##FUNC_NAME = 0;                            \
-+            }                                                         \
-+        }                                                             \
-+    } while(0)
-+
- struct extention_map_t {
-     const char* name;
-     __eglMustCastToProperFunctionPointerType address;
-@@ -1369,6 +1399,11 @@
+@@ -1369,6 +1369,37 @@ EGLBoolean eglSwapBuffersWithDamageKHR(E
      ATRACE_CALL();
      clearError();
 
 +    char value[PROPERTY_VALUE_MAX];
 +    property_get("debug.egl.call_freq", value, "false");
-+    if (!strcmp(value,"true"))
-+        CALL_FREQ(eglSwapBuffersWithDamageKHR);
++    if (!strcmp(value,"true")) {
++        static struct timeval t_start_eglSwapBuffersWithDamageKHR,t_end_eglSwapBuffersWithDamageKHR;
++        static long long last_t_eglSwapBuffersWithDamageKHR = 0;
++        static int frame_cnt_eglSwapBuffersWithDamageKHR = 0;
++        long long current_t = 0;
++        long long diff_t = 0;
++        double frequent = 0;
++        struct timeval t_time;
++        frame_cnt_eglSwapBuffersWithDamageKHR++;
++        if(last_t_eglSwapBuffersWithDamageKHR == 0)
++        {
++                gettimeofday (&t_time , NULL);
++                 last_t_eglSwapBuffersWithDamageKHR = t_time.tv_sec*1000000 + t_time.tv_usec;
++             }
++             else
++             {
++                 if(frame_cnt_eglSwapBuffersWithDamageKHR == 100)
++                 {
++                     gettimeofday (&t_time , NULL);
++                     current_t = t_time.tv_sec*1000000 + t_time.tv_usec;
++                     diff_t = current_t - last_t_eglSwapBuffersWithDamageKHR;
++                     frequent = (100*1000000.0) / diff_t;
++                     ALOGD("%s called_frequent diff_t=%lld %.1f\n", "eglSwapBuffersWithDamageKHR", diff_t, frequent);
++                     last_t_eglSwapBuffersWithDamageKHR = current_t;
++                     frame_cnt_eglSwapBuffersWithDamageKHR = 0;
++                 }
++             }
++        }
 +
      const egl_display_ptr dp = validate_display(dpy);
      if (!dp) return EGL_FALSE;
@@ -156,40 +203,6 @@ diff -Nurp a/libs/dumputils/dump_utils.cpp b/libs/dumputils/dump_utils.cpp
          "/system/bin/statsd",
          "/system/bin/surfaceflinger",
          "/system/bin/vehicle_network_service",
-diff -Nur a/services/inputflinger/EventHub.cpp b/services/inputflinger/EventHub.cpp
---- a/services/inputflinger/EventHub.cpp    2020-10-19 09:38:19.000000000 +0800
-+++ b/services/inputflinger/EventHub.cpp        2020-12-23 20:08:08.316799069 +0800
-@@ -1109,12 +1109,26 @@
-
- status_t EventHub::openDeviceLocked(const char *devicePath) {
-     char buffer[80];
--
--    ALOGV("Opening device: %s", devicePath);
--
-+    int timecnt = 0;
-+    FILE *proc;
-+    char buf[1024];
-+    ALOGE("Opening device: %s", devicePath);
-+    ALOGE("EventHub:");
-+    proc = popen("/bin/ls -al /dev/input","r");
-+    while ( !feof(proc) && fgets(buf,sizeof(buf),proc) )
-+    {
-+       ALOGE(" %s", buf);
-+    }
-+    pclose(proc);
-+next:
-     int fd = open(devicePath, O_RDWR | O_CLOEXEC | O_NONBLOCK);
-     if(fd < 0) {
-         ALOGE("could not open %s, %s\n", devicePath, strerror(errno));
-+        if (timecnt < 5) {
-+            usleep(200000);
-+            timecnt++;
-+            goto next;
-+        }
-         return -1;
-     }
-
-
 diff -Nurp Surface_old/libs/gui/Surface.cpp Surface_new/libs/gui/Surface.cpp
 --- Surface_old/libs/gui/Surface.cpp	2021-02-19 17:35:57.087888291 +0800
 +++ Surface_new/libs/gui/Surface.cpp	2021-02-19 17:34:43.991888291 +0800
@@ -256,7 +269,7 @@ diff -Nurp a/libs/gui/CpuConsumer.cpp b/libs/gui/CpuConsumer.cpp
  
  #define CC_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
  //#define CC_LOGD(x, ...) ALOGD("[%s] " x, mName.string(), ##__VA_ARGS__)
-@@ -195,6 +197,134 @@ status_t CpuConsumer::lockNextBuffer(Loc
+@@ -195,6 +197,136 @@ status_t CpuConsumer::lockNextBuffer(Loc
      return OK;
  }
  
@@ -264,7 +277,9 @@ diff -Nurp a/libs/gui/CpuConsumer.cpp b/libs/gui/CpuConsumer.cpp
 +status_t CpuConsumer::lockNextBufferEncTurbo(LockedBuffer *nativeBuffer) {
 +    status_t err;
 +
-+    if (!nativeBuffer) return BAD_VALUE;
++    if (!nativeBuffer) {
++         return BAD_VALUE;
++    }
 +    if (mCurrentLockedBuffers == mMaxLockedBuffers) {
 +        CC_LOGW("Max buffers have been locked (%zd), cannot lock anymore.",
 +                mMaxLockedBuffers);
@@ -530,8 +545,8 @@ diff -Nurp a/libs/ui/include/ui/GraphicBufferMapper.h b/libs/ui/include/ui/Graph
  
      const Gralloc2::Mapper& getGrallocMapper() const
 diff -Nurp a/libs/gui/BufferQueueProducer.cpp b/libs/gui/BufferQueueProducer.cpp
---- a/libs/gui/BufferQueueProducer.cpp	2021-05-25 20:11:46.062928249 +0800
-+++ b/libs/gui/BufferQueueProducer.cpp	2021-05-25 20:37:44.324261847 +0800
+--- a/libs/gui/BufferQueueProducer.cpp	2021-11-03 09:45:27.578270658 +0000
++++ b/libs/gui/BufferQueueProducer.cpp	2021-11-03 09:43:33.398275681 +0000
 @@ -38,6 +38,7 @@
  
  #include <utils/Log.h>

@@ -1,5 +1,13 @@
 Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache 2.0 for more details.
 
 diff -uprN system_vold_old/cryptfs.cpp system_vold_new/cryptfs.cpp
 --- system_vold_old/cryptfs.cpp	2020-07-16 22:53:18.228552339 +0800
