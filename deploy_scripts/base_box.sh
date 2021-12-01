@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+
 function check_environment() {
     # root权限执行此脚本
     if [ "${UID}" -ne 0 ]; then
