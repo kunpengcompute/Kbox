@@ -1,0 +1,439 @@
+diff --git a/system/core/adb/Android.bp b/system/core/adb/Android.bp
+index 01e00dd..296d21d 100644
+--- a/system/core/adb/Android.bp
++++ b/system/core/adb/Android.bp
+@@ -12,9 +12,33 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
++// Android.bp condition compilation start
++bootstrap_go_package {
++    // name and pkgPath need to  according to your module
++    name: "soong-system_core_adb",
++    pkgPath: "android/soong/system_core_adb",
++    deps: [
++        "blueprint",
++        "blueprint-pathtools",
++        "soong",
++        "soong-android",
++        "soong-cc",
++        "soong-genrule",
++    ],
++    srcs: [
++          "system_core_adb.go", // include new add .go file
++    ],
++    pluginFor: ["soong_build"],
++}
++
++system_core_adb_defaults { // system_core_adb_defaults is a module
++    name: "system_core_adb_selinux_cflags_mod",
++}
++// Android.bp condition compilation end
++
+ cc_defaults {
+     name: "adb_defaults",
+-
++    defaults: ["system_core_adb_selinux_cflags_mod"], // Android.bp condition compilation
+     cflags: [
+         "-Wall",
+         "-Wextra",
+diff --git a/system/core/adb/daemon/main.cpp b/system/core/adb/daemon/main.cpp
+index e5a4917..64465cd 100644
+--- a/system/core/adb/daemon/main.cpp
++++ b/system/core/adb/daemon/main.cpp
+@@ -163,12 +163,14 @@ static void drop_privileges(int server_port) {
+     } else {
+         // minijail_enter() will abort if any priv-dropping step fails.
+         minijail_enter(jail.get());
+-
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+         if (root_seclabel != nullptr) {
+             if (selinux_android_setcon(root_seclabel) < 0) {
+                 LOG(FATAL) << "Could not set SELinux context";
+             }
+         }
++#endif
+         std::string error;
+         std::string local_name =
+             android::base::StringPrintf("tcp:%d", server_port);
+diff --git a/system/core/adb/system_core_adb.go b/system/core/adb/system_core_adb.go
+new file mode 100644
+index 0000000..b4daa52
+--- /dev/null
++++ b/system/core/adb/system_core_adb.go
+@@ -0,0 +1,32 @@
++package  system_core_adb
++
++import (
++        "android/soong/android"
++        "android/soong/cc"
++        "fmt"
++)
++
++func init() {
++    fmt.Println("according to enable or disable selinux, resister the modules")
++    android.RegisterModuleType("system_core_adb_defaults", selinuxDefaultsFactory)
++}
++
++func selinuxDefaultsFactory() (android.Module) {
++    module := cc.DefaultsFactory()
++    android.AddLoadHook(module, selinuxDefaults)
++    return module
++}
++
++func selinuxDefaults(ctx android.LoadHookContext) {
++    type props struct {
++         Cflags []string
++    }
++    p := &props{}
++    fmt.Println("according to enable or disable selinux, mod cflags")
++    fmt.Println("KBOX_ENABLE_SELINUX_SUPPORT: ", ctx.AConfig().IsEnvTrue("KBOX_ENABLE_SELINUX_SUPPORT"))
++    if ctx.AConfig().IsEnvTrue("KBOX_ENABLE_SELINUX_SUPPORT") {
++        p.Cflags = append(p.Cflags, "-DKBOX_ENABLE_SELINUX_SUPPORT")
++    }
++
++    ctx.AppendProperties(p)
++}
+diff --git a/system/core/init/Android.bp b/system/core/init/Android.bp
+index 569421e..898e249 100644
+--- a/system/core/init/Android.bp
++++ b/system/core/init/Android.bp
+@@ -14,8 +14,33 @@
+ // limitations under the License.
+ //
+ 
++// Android.bp condition compilation start
++bootstrap_go_package {
++    // name and pkgPath need to  according to your module
++    name: "soong-system_core_init",
++    pkgPath: "android/soong/system_core_init",
++    deps: [
++        "blueprint",
++        "blueprint-pathtools",
++        "soong",
++        "soong-android",
++        "soong-cc",
++        "soong-genrule",
++    ],
++    srcs: [
++          "system_core_init.go", // include new add .go file
++    ],
++    pluginFor: ["soong_build"],
++}
++
++system_core_init_defaults { // system_core_init_defaults is a module
++    name: "system_core_init_selinux_cflags_mod",
++}
++// Android.bp condition compilation end
++
+ cc_defaults {
+     name: "init_defaults",
++    defaults: ["system_core_init_selinux_cflags_mod"], // Android.bp condition compilation
+     cpp_std: "experimental",
+     sanitize: {
+         misc_undefined: ["signed-integer-overflow"],
+diff --git a/system/core/init/first_stage_init.cpp b/system/core/init/first_stage_init.cpp
+index 6f03602..e7f8573 100644
+--- a/system/core/init/first_stage_init.cpp
++++ b/system/core/init/first_stage_init.cpp
+@@ -128,8 +128,10 @@ int FirstStageMain(int argc, char** argv) {
+     // gid_t groups[] = {AID_READPROC};
+     // CHECKCALL(setgroups(arraysize(groups), groups));
+     CHECKCALL(mount("sysfs", "/sys", "sysfs", 0, NULL));
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     CHECKCALL(mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL));
+-
++#endif
+     CHECKCALL(mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11)));
+ 
+     if constexpr (WORLD_WRITABLE_KMSG) {
+@@ -164,12 +166,13 @@ int FirstStageMain(int argc, char** argv) {
+     CHECKCALL(mount("tmpfs", "/debug_ramdisk", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
+                     "mode=0755,uid=0,gid=0"));
+ #undef CHECKCALL
+-
+-    SetStdioToDevNull(argv);
++    // SetStdioToDevNull(argv);
+     // Now that tmpfs is mounted on /dev and we have /dev/kmsg, we can actually
+     // talk to the outside world...
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     InitKernelLogging(argv);
+-
++#endif
+     if (!errors.empty()) {
+         for (const auto& [error_string, error_errno] : errors) {
+             LOG(ERROR) << error_string << " " << strerror(error_errno);
+diff --git a/system/core/init/init.cpp b/system/core/init/init.cpp
+index fdb10aa..bc20e0c 100644
+--- a/system/core/init/init.cpp
++++ b/system/core/init/init.cpp
+@@ -619,8 +619,7 @@ int SecondStageMain(int argc, char** argv) {
+     if (REBOOT_BOOTLOADER_ON_PANIC) {
+         InstallRebootSignalHandlers();
+     }
+-
+-    SetStdioToDevNull(argv);
++    // SetStdioToDevNull(argv);
+     // InitKernelLogging(argv);
+     LOG(INFO) << "init second stage started!";
+ 
+@@ -654,9 +653,11 @@ int SecondStageMain(int argc, char** argv) {
+     export_kernel_boot_props();
+ 
+     // Make the time that init started available for bootstat to log.
+-    property_set("ro.boottime.init", getenv("INIT_STARTED_AT"));
++    //property_set("ro.boottime.init", getenv("INIT_STARTED_AT"));
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     property_set("ro.boottime.init.selinux", getenv("INIT_SELINUX_TOOK"));
+-
++#endif
+     // Set libavb version for Framework-only OTA match in Treble build.
+     // const char* avb_version = getenv("INIT_AVB_VERSION");
+     // if (avb_version) property_set("ro.boot.avb_version", avb_version);
+@@ -672,10 +673,13 @@ int SecondStageMain(int argc, char** argv) {
+     unsetenv("INIT_AVB_VERSION");
+     unsetenv("INIT_FORCE_DEBUGGABLE");
+ 
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     // Now set up SELinux for second stage.
+     SelinuxSetupKernelLogging();
+     SelabelInitialize();
+     SelinuxRestoreContext();
++#endif
+ 
+     Epoll epoll;
+     if (auto result = epoll.Open(); !result) {
+diff --git a/system/core/init/property_service.cpp b/system/core/init/property_service.cpp
+index f2c7462..9b9af46 100644
+--- a/system/core/init/property_service.cpp
++++ b/system/core/init/property_service.cpp
+@@ -334,11 +334,16 @@ class SocketConnection {
+     const ucred& cred() { return cred_; }
+ 
+     std::string source_context() const {
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++        std::string result = "unconfined";
++        return result;
++#else
+         char* source_context = nullptr;
+-        getpeercon(socket_, &source_context);
++        getpeercon(socket_, &source_context); // get security context of a peer socket!!! "SELinux API documentation"
+         std::string result = source_context;
+         freecon(source_context);
+         return result;
++#endif
+     }
+ 
+   private:
+@@ -506,9 +511,12 @@ uint32_t HandlePropertySet(const std::string& name, const std::string& value,
+                   << process_log_string;
+     }
+ 
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     if (name == "selinux.restorecon_recursive") {
+         return PropertySetAsync(name, value, RestoreconRecursiveAsync, error);
+     }
++#endif
+ 
+     return PropertySet(name, value, error);
+ }
+@@ -1001,9 +1009,12 @@ void CreateSerializedPropertyInfo() {
+ }
+ 
+ void StartPropertyService(Epoll* epoll) {
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     selinux_callback cb;
+     cb.func_audit = SelinuxAuditCallback;
+     selinux_set_callback(SELINUX_CB_AUDIT, cb);
++#endif
+ 
+     property_set("ro.property_service.version", "2");
+ 
+diff --git a/system/core/init/selinux.cpp b/system/core/init/selinux.cpp
+index 86238b4..c481d0e 100644
+--- a/system/core/init/selinux.cpp
++++ b/system/core/init/selinux.cpp
+@@ -97,10 +97,14 @@ EnforcingStatus StatusFromCmdline() {
+ }
+ 
+ bool IsEnforcing() {
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++    return false; // permissive
++#else
+     if (ALLOW_PERMISSIVE_SELINUX) {
+         return StatusFromCmdline() == SELINUX_ENFORCING;
+     }
+     return true;
++#endif
+ }
+ 
+ // Forks, executes the provided program in the child, and waits for the completion in the parent.
+@@ -495,6 +499,10 @@ void SelinuxSetupKernelLogging() {
+ // This function returns the Android version with which the vendor SEPolicy was compiled.
+ // It is used for version checks such as whether or not vendor_init should be used
+ int SelinuxGetVendorAndroidVersion() {
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++    return 29; // Android10APILevel:29  Android9APILevel:28 Android8.1APILevel:27  Android8.0APILevel:27 ...
++#else
++#endif
+     if (!IsSplitPolicyDevice()) {
+         // If this device does not split sepolicy files, it's not a Treble device and therefore,
+         // we assume it's always on the latest platform.
+@@ -517,6 +525,8 @@ int SelinuxGetVendorAndroidVersion() {
+ 
+ // This function initializes SELinux then execs init to run in the init SELinux context.
+ int SetupSelinux(char** argv) {
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     InitKernelLogging(argv);
+ 
+     if (REBOOT_BOOTLOADER_ON_PANIC) {
+@@ -534,7 +544,7 @@ int SetupSelinux(char** argv) {
+     if (selinux_android_restorecon("/system/bin/init", 0) == -1) {
+         PLOG(FATAL) << "restorecon failed of /system/bin/init failed";
+     }
+-
++#endif
+     const char* path = "/system/bin/init";
+     const char* args[] = {path, "second_stage", nullptr};
+     execv(path, const_cast<char**>(args));
+diff --git a/system/core/init/subcontext.cpp b/system/core/init/subcontext.cpp
+index bad6b5c..0923188 100644
+--- a/system/core/init/subcontext.cpp
++++ b/system/core/init/subcontext.cpp
+@@ -250,9 +250,14 @@ void Subcontext::Fork() {
+             PLOG(FATAL) << "Could not dup child_fd";
+         }
+ 
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
++        // selinux API， Set exec security context for the next execve(3). Call with NULL if you want to reset to the default.
+         if (setexeccon(context_.c_str()) < 0) {
++            // ABORT_AFTER_LOG_EXPR_IF((SEVERITY_LAMBDA(severity)) == ::android::base::FATAL, true)
+             PLOG(FATAL) << "Could not set execcon for '" << context_ << "'";
+         }
++#endif
+ 
+         auto init_path = GetExecutablePath();
+         auto child_fd_string = std::to_string(child_fd);
+diff --git a/system/core/init/system_core_init.go b/system/core/init/system_core_init.go
+new file mode 100644
+index 0000000..4d19397
+--- /dev/null
++++ b/system/core/init/system_core_init.go
+@@ -0,0 +1,32 @@
++package  system_core_init
++
++import (
++        "android/soong/android"
++        "android/soong/cc"
++        "fmt"
++)
++
++func init() {
++    fmt.Println("according to enable or disable selinux, resister the modules")
++    android.RegisterModuleType("system_core_init_defaults", selinuxDefaultsFactory)
++}
++
++func selinuxDefaultsFactory() (android.Module) {
++    module := cc.DefaultsFactory()
++    android.AddLoadHook(module, selinuxDefaults)
++    return module
++}
++
++func selinuxDefaults(ctx android.LoadHookContext) {
++    type props struct {
++         Cflags []string
++    }
++    p := &props{}
++    fmt.Println("according to enable or disable selinux, mod cflags")
++    fmt.Println("KBOX_ENABLE_SELINUX_SUPPORT: ", ctx.AConfig().IsEnvTrue("KBOX_ENABLE_SELINUX_SUPPORT"))
++    if ctx.AConfig().IsEnvTrue("KBOX_ENABLE_SELINUX_SUPPORT") {
++        p.Cflags = append(p.Cflags, "-DKBOX_ENABLE_SELINUX_SUPPORT")
++    }
++
++    ctx.AppendProperties(p)
++}
+diff --git a/system/core/init/ueventd.cpp b/system/core/init/ueventd.cpp
+index 5496b5d..0b55652 100644
+--- a/system/core/init/ueventd.cpp
++++ b/system/core/init/ueventd.cpp
+@@ -228,10 +228,11 @@ int ueventd_main(int argc, char** argv) {
+     android::base::InitLogging(argv, &android::base::KernelLogger);
+ 
+     LOG(INFO) << "ueventd started!";
+-
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     SelinuxSetupKernelLogging();
+     SelabelInitialize();
+-
++#endif
+     std::vector<std::unique_ptr<UeventHandler>> uevent_handlers;
+ 
+     // Keep the current product name base configuration so we remain backwards compatible and
+diff --git a/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp b/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp
+index 82827a0..b82ed51 100644
+--- a/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp
++++ b/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp
+@@ -1130,12 +1130,14 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids,
+       // at a later point (but may not have rights to use AoT artifacts).
+       env->ExceptionClear();
+     }
+-
++#ifndef KBOX_ENABLE_SELINUX_SUPPORT
++#else
+     // TODO(oth): Remove hardcoded label here (b/117874058).
+     static const char* kSystemServerLabel = "u:r:system_server:s0";
+     if (selinux_android_setcon(kSystemServerLabel) != 0) {
+       fail_fn(CREATE_ERROR("selinux_android_setcon(%s)", kSystemServerLabel));
+     }
++#endif
+   }
+ 
+   env->CallStaticVoidMethod(gZygoteClass, gCallPostForkChildHooks, runtime_flags,
+diff --git a/frameworks/base/core/jni/frameworks_base_core_jni.go b/frameworks/base/core/jni/frameworks_base_core_jni.go
+new file mode 100644
+index 0000000..28585cd
+--- /dev/null
++++ b/frameworks/base/core/jni/frameworks_base_core_jni.go
+@@ -0,0 +1,32 @@
++package  frameworks_base_core_jni
++
++import (
++        "android/soong/android"
++        "android/soong/cc"
++        "fmt"
++)
++
++func init() {
++    fmt.Println("according to enable or disable selinux, resister the modules")
++    android.RegisterModuleType("frameworks_base_core_jni_defaults", selinuxDefaultsFactory)
++}
++
++func selinuxDefaultsFactory() (android.Module) {
++    module := cc.DefaultsFactory()
++    android.AddLoadHook(module, selinuxDefaults)
++    return module
++}
++
++func selinuxDefaults(ctx android.LoadHookContext) {
++    type props struct {
++         Cflags []string
++    }
++    p := &props{}
++    fmt.Println("according to enable or disable selinux, mod cflags")
++    fmt.Println("KBOX_ENABLE_SELINUX_SUPPORT: ", ctx.AConfig().IsEnvTrue("KBOX_ENABLE_SELINUX_SUPPORT"))
++    if ctx.AConfig().IsEnvTrue("KBOX_ENABLE_SELINUX_SUPPORT") {
++        p.Cflags = append(p.Cflags, "-DKBOX_ENABLE_SELINUX_SUPPORT")
++    }
++
++    ctx.AppendProperties(p)
++}

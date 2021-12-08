@@ -1,0 +1,318 @@
+diff --git a/camera/CameraBase.cpp b/camera/CameraBase.cpp
+index c53e6c3..23008a0 100644
+--- a/camera/CameraBase.cpp
++++ b/camera/CameraBase.cpp
+@@ -77,8 +77,8 @@ status_t CameraStatus::readFromParcel(const android::Parcel* parcel) {
+ 
+ namespace {
+     sp<::android::hardware::ICameraService> gCameraService;
+-    const int                 kCameraServicePollDelay = 500000; // 0.5s
+-    const char*               kCameraServiceName      = "media.camera";
++    //const int                 kCameraServicePollDelay = 500000; // 0.5s
++    //const char*               kCameraServiceName      = "media.camera";
+ 
+     Mutex                     gLock;
+ 
+@@ -108,6 +108,7 @@ template <typename TCam, typename TCamTraits>
+ const sp<::android::hardware::ICameraService> CameraBase<TCam, TCamTraits>::getCameraService()
+ {
+     Mutex::Autolock _l(gLock);
++/*
+     if (gCameraService.get() == 0) {
+         char value[PROPERTY_VALUE_MAX];
+         property_get("config.disable_cameraservice", value, "0");
+@@ -133,6 +134,8 @@ const sp<::android::hardware::ICameraService> CameraBase<TCam, TCamTraits>::getC
+     }
+     ALOGE_IF(gCameraService == 0, "no CameraService!?");
+     return gCameraService;
++*/
++    return nullptr;
+ }
+ 
+ template <typename TCam, typename TCamTraits>
+diff --git a/camera/cameraserver/Android.bp b/camera/cameraserver/Android.bp
+index ecaba3a..986bad5 100644
+--- a/camera/cameraserver/Android.bp
++++ b/camera/cameraserver/Android.bp
+@@ -41,7 +41,7 @@ cc_binary {
+         "-Wno-unused-parameter",
+     ],
+ 
+-    init_rc: ["cameraserver.rc"],
++    //init_rc: ["cameraserver.rc"],
+ 
+     vintf_fragments: [
+         "manifest_android.frameworks.cameraservice.service@2.0.xml",
+diff --git a/camera/cameraserver/main_cameraserver.cpp b/camera/cameraserver/main_cameraserver.cpp
+index cef8ef5..652f3c4 100644
+--- a/camera/cameraserver/main_cameraserver.cpp
++++ b/camera/cameraserver/main_cameraserver.cpp
+@@ -24,6 +24,7 @@ using namespace android;
+ 
+ int main(int argc __unused, char** argv __unused)
+ {
++	return 0;
+     signal(SIGPIPE, SIG_IGN);
+ 
+     // Set 5 threads for HIDL calls. Now cameraserver will serve HIDL calls in
+diff --git a/media/codec2/hidl/services/vendor.cpp b/media/codec2/hidl/services/vendor.cpp
+index ef2f98e..69a1138 100644
+--- a/media/codec2/hidl/services/vendor.cpp
++++ b/media/codec2/hidl/services/vendor.cpp
+@@ -25,6 +25,7 @@
+ #include <C2Component.h>
+ 
+ // OmxStore is added for visibility by dumpstate.
++#include <media/stagefright/omx/1.0/Omx.h>
+ #include <media/stagefright/omx/1.0/OmxStore.h>
+ 
+ // This is created by module "codec2.vendor.base.policy". This can be modified.
+@@ -110,34 +111,18 @@ int main(int /* argc */, char** /* argv */) {
+     // contains alternating binder and hwbinder calls. (See b/35283480.)
+     android::hardware::configureRpcThreadpool(8, true /* callerWillJoin */);
+ 
+-    // Create IComponentStore service.
+-    {
+-        using namespace ::android::hardware::media::c2::V1_0;
+-        android::sp<IComponentStore> store;
+-
+-        // Vendor's TODO: Replace this with
+-        // store = new utils::ComponentStore(
+-        //         /* implementation of C2ComponentStore */);
+-        ALOGD("Instantiating Codec2's dummy IComponentStore service...");
+-        store = new utils::ComponentStore(
+-                std::make_shared<DummyC2Store>());
+-
+-        if (store == nullptr) {
+-            ALOGE("Cannot create Codec2's IComponentStore service.");
+-        } else {
+-            if (store->registerAsService("default") != android::OK) {
+-                ALOGE("Cannot register Codec2's "
+-                        "IComponentStore service.");
+-            } else {
+-                ALOGI("Codec2's IComponentStore service created.");
+-            }
+-        }
+-    }
+-
+     // Register IOmxStore service.
+     {
+         using namespace ::android::hardware::media::omx::V1_0;
+-        android::sp<IOmxStore> omxStore = new implementation::OmxStore();
++        android::sp<IOmx> omx = new(std::nothrow) implementation::Omx();
++        if (omx == nullptr) {
++            ALOGE("Cannot create IOmx HAL service.");
++        } else if (omx->registerAsService() != android::OK) {
++            ALOGE("Cannot register IOmx HAL service.");
++        } else {
++            ALOGI("IOmx HAL service created.");
++        }
++        android::sp<IOmxStore> omxStore = new(std::nothrow) implementation::OmxStore(omx);
+         if (omxStore == nullptr) {
+             ALOGE("Cannot create IOmxStore HAL service.");
+         } else if (omxStore->registerAsService() != android::OK) {
+diff --git a/media/libstagefright/MediaCodecList.cpp b/media/libstagefright/MediaCodecList.cpp
+index 3d58d4b..e588613 100644
+--- a/media/libstagefright/MediaCodecList.cpp
++++ b/media/libstagefright/MediaCodecList.cpp
+@@ -82,7 +82,9 @@ OmxInfoBuilder sOmxNoSurfaceEncoderInfoBuilder{false /* allowSurfaceEncoders */}
+ 
+ Mutex sCodec2InfoBuilderMutex;
+ std::unique_ptr<MediaCodecListBuilderBase> sCodec2InfoBuilder;
+-
++// kbox will block when use codec2
++// the error message is "Codec2Client: Failed to retrieve component traits from service 'software'. Retrying..".
++/*
+ MediaCodecListBuilderBase *GetCodec2InfoBuilder() {
+     Mutex::Autolock _l(sCodec2InfoBuilderMutex);
+     if (!sCodec2InfoBuilder) {
+@@ -91,7 +93,7 @@ MediaCodecListBuilderBase *GetCodec2InfoBuilder() {
+     }
+     return sCodec2InfoBuilder.get();
+ }
+-
++*/
+ std::vector<MediaCodecListBuilderBase *> GetBuilders() {
+     std::vector<MediaCodecListBuilderBase *> builders;
+     // if plugin provides the input surface, we cannot use OMX video encoders.
+@@ -105,7 +107,8 @@ std::vector<MediaCodecListBuilderBase *> GetBuilders() {
+         ALOGD("Allowing only non-surface-encoder OMX codecs");
+         builders.push_back(&sOmxNoSurfaceEncoderInfoBuilder);
+     }
+-    builders.push_back(GetCodec2InfoBuilder());
++    // kbox can not use codec2, so we do not add builder
++    //builders.push_back(GetCodec2InfoBuilder());
+     return builders;
+ }
+ 
+diff --git a/media/libstagefright/colorconversion/SoftwareRenderer.cpp b/media/libstagefright/colorconversion/SoftwareRenderer.cpp
+index 359df3d..bc77442 100644
+--- a/media/libstagefright/colorconversion/SoftwareRenderer.cpp
++++ b/media/libstagefright/colorconversion/SoftwareRenderer.cpp
+@@ -123,6 +123,7 @@ void SoftwareRenderer::resetFormatIfChanged(
+     size_t bufHeight = mCropHeight;
+ 
+     // hardware has YUV12 and RGBA8888 support, so convert known formats
++	if (false)
+     {
+         switch (mColorFormat) {
+             case OMX_COLOR_FormatYUV420Planar:
+diff --git a/media/ndk/NdkImageReader.cpp b/media/ndk/NdkImageReader.cpp
+index c0ceb3d..0b98b78 100644
+--- a/media/ndk/NdkImageReader.cpp
++++ b/media/ndk/NdkImageReader.cpp
+@@ -464,7 +464,7 @@ AImageReader::acquireImageLocked(/*out*/AImage** image, /*out*/int* acquireFence
+                 __FUNCTION__, bufferUsage, readerUsage);
+ 
+         if (readerFmt != bufferFmt) {
+-            if (readerFmt == HAL_PIXEL_FORMAT_YCbCr_420_888 && isPossiblyYUV(bufferFmt)) {
++            if (readerFmt == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+                 // Special casing for when producer switches to a format compatible with flexible
+                 // YUV.
+                 mHalFormat = bufferFmt;
+diff --git a/services/audiopolicy/config/audio_policy_configuration.xml b/services/audiopolicy/config/audio_policy_configuration.xml
+index b28381b..9e10116 100644
+--- a/services/audiopolicy/config/audio_policy_configuration.xml
++++ b/services/audiopolicy/config/audio_policy_configuration.xml
+@@ -56,12 +56,12 @@
+                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                 </mixPort>
+-                <mixPort name="deep_buffer" role="source"
++                <!-- <mixPort name="deep_buffer" role="source"
+                         flags="AUDIO_OUTPUT_FLAG_DEEP_BUFFER">
+                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+-                </mixPort>
+-                <mixPort name="compressed_offload" role="source"
++                </mixPort> -->
++                <!-- <mixPort name="compressed_offload" role="source"
+                          flags="AUDIO_OUTPUT_FLAG_DIRECT|AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_NON_BLOCKING">
+                     <profile name="" format="AUDIO_FORMAT_MP3"
+                              samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000"
+@@ -72,15 +72,15 @@
+                     <profile name="" format="AUDIO_FORMAT_AAC_LC"
+                              samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000"
+                              channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_MONO"/>
+-                </mixPort>
+-                <mixPort name="voice_tx" role="source">
++                </mixPort> -->
++		<mixPort name="voice_tx" role="source">
+                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                              samplingRates="8000,16000" channelMasks="AUDIO_CHANNEL_OUT_MONO"/>
+-                </mixPort>
++		</mixPort>
+                 <mixPort name="primary input" role="sink">
+                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+-                             samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000"
+-                             channelMasks="AUDIO_CHANNEL_IN_MONO,AUDIO_CHANNEL_IN_STEREO,AUDIO_CHANNEL_IN_FRONT_BACK"/>
++                             samplingRates="44100"
++                             channelMasks="AUDIO_CHANNEL_IN_MONO"/>
+                 </mixPort>
+                 <mixPort name="voice_rx" role="sink">
+                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+@@ -156,17 +156,17 @@
+             <!-- route declaration, i.e. list all available sources for a given sink -->
+             <routes>
+                 <route type="mix" sink="Earpiece"
+-                       sources="primary output,deep_buffer,BT SCO Headset Mic"/>
++                       sources="primary output,BT SCO Headset Mic"/>
+                 <route type="mix" sink="Speaker"
+-                       sources="primary output,deep_buffer,compressed_offload,BT SCO Headset Mic,Telephony Rx"/>
++                       sources="primary output,BT SCO Headset Mic,Telephony Rx"/>
+                 <route type="mix" sink="Wired Headset"
+-                       sources="primary output,deep_buffer,compressed_offload,BT SCO Headset Mic,Telephony Rx"/>
++                       sources="primary output,BT SCO Headset Mic,Telephony Rx"/>
+                 <route type="mix" sink="Wired Headphones"
+-                       sources="primary output,deep_buffer,compressed_offload,BT SCO Headset Mic,Telephony Rx"/>
++                       sources="primary output,BT SCO Headset Mic,Telephony Rx"/>
+                 <route type="mix" sink="primary input"
+                        sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic"/>
+-                <route type="mix" sink="Telephony Tx"
+-                       sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic, voice_tx"/>
++	        <route type="mix" sink="Telephony Tx"
++		       sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic,voice_tx"/>
+                 <route type="mix" sink="voice_rx"
+                        sources="Telephony Rx"/>
+             </routes>
+diff --git a/services/audiopolicy/config/audio_policy_configuration_bluetooth_legacy_hal.xml b/services/audiopolicy/config/audio_policy_configuration_bluetooth_legacy_hal.xml
+index b4cc1d3..27f6418 100644
+--- a/services/audiopolicy/config/audio_policy_configuration_bluetooth_legacy_hal.xml
++++ b/services/audiopolicy/config/audio_policy_configuration_bluetooth_legacy_hal.xml
+@@ -166,7 +166,7 @@
+                 <route type="mix" sink="primary input"
+                        sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic"/>
+                 <route type="mix" sink="Telephony Tx"
+-                       sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic, voice_tx"/>
++                       sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic,voice_tx"/>
+                 <route type="mix" sink="voice_rx"
+                        sources="Telephony Rx"/>
+             </routes>
+diff --git a/services/mediacodec/Android.bp b/services/mediacodec/Android.bp
+index 2f3cad9..5ab5e40 100644
+--- a/services/mediacodec/Android.bp
++++ b/services/mediacodec/Android.bp
+@@ -26,7 +26,7 @@ cc_binary {
+                 malloc_not_svelte: {
+                     // Scudo increases memory footprint, so only enable on
+                     // non-svelte devices.
+-                    shared_libs: ["libc_scudo"],
++                    // shared_libs: ["libc_scudo"],
+                 },
+             },
+         },
+diff --git a/services/mediacodec/main_codecservice.cpp b/services/mediacodec/main_codecservice.cpp
+index 6a82b1b..14c111d 100644
+--- a/services/mediacodec/main_codecservice.cpp
++++ b/services/mediacodec/main_codecservice.cpp
+@@ -48,23 +48,5 @@ int main(int argc __unused, char** argv)
+ 
+     ::android::hardware::configureRpcThreadpool(64, false);
+ 
+-    // Default codec services
+-    using namespace ::android::hardware::media::omx::V1_0;
+-    sp<IOmx> omx = new implementation::Omx();
+-    if (omx == nullptr) {
+-        LOG(ERROR) << "Cannot create IOmx HAL service.";
+-    } else if (omx->registerAsService() != OK) {
+-        LOG(ERROR) << "Cannot register IOmx HAL service.";
+-    } else {
+-        LOG(INFO) << "IOmx HAL service created.";
+-    }
+-    sp<IOmxStore> omxStore = new implementation::OmxStore(
+-            property_get_int64("vendor.media.omx", 1) ? omx : nullptr);
+-    if (omxStore == nullptr) {
+-        LOG(ERROR) << "Cannot create IOmxStore HAL service.";
+-    } else if (omxStore->registerAsService() != OK) {
+-        LOG(ERROR) << "Cannot register IOmxStore HAL service.";
+-    }
+-
+     ::android::hardware::joinRpcThreadpool();
+ }
+diff --git a/services/mediacodec/seccomp_policy/mediacodec-arm.policy b/services/mediacodec/seccomp_policy/mediacodec-arm.policy
+index 835f8bb..fe071cf 100644
+--- a/services/mediacodec/seccomp_policy/mediacodec-arm.policy
++++ b/services/mediacodec/seccomp_policy/mediacodec-arm.policy
+@@ -16,6 +16,9 @@ getrandom: 1
+ memfd_create: 1
+ ftruncate: 1
+ ftruncate64: 1
++uname: 1
++mkdirat: 1
++sysinfo: 1
+ 
+ # mremap: Ensure |flags| are (MREMAP_MAYMOVE | MREMAP_FIXED) TODO: Once minijail
+ # parser support for '<' is in this needs to be modified to also prevent
+diff --git a/services/mediaextractor/Android.bp b/services/mediaextractor/Android.bp
+index 0c701d7..c31e251 100644
+--- a/services/mediaextractor/Android.bp
++++ b/services/mediaextractor/Android.bp
+@@ -34,7 +34,7 @@ cc_binary {
+                 malloc_not_svelte: {
+                     // Scudo increases memory footprint, so only enable on
+                     // non-svelte devices.
+-                    shared_libs: ["libc_scudo"],
++                    // shared_libs: ["libc_scudo"],
+                 },
+             },
+         },

@@ -1,0 +1,48 @@
+diff --git a/power.cpp b/power.cpp
+index e9b6ccd..61444a1 100644
+--- a/power.cpp
++++ b/power.cpp
+@@ -26,7 +26,7 @@
+ #include <string>
+ #include <thread>
+ #include <unordered_map>
+-
++#if 0
+ using android::sp;
+ using android::system::suspend::V1_0::ISystemSuspend;
+ using android::system::suspend::V1_0::IWakeLock;
+@@ -39,9 +39,11 @@ static const sp<ISystemSuspend>& getSystemSuspendServiceOnce() {
+     static sp<ISystemSuspend> suspendService = ISystemSuspend::getService();
+     return suspendService;
+ }
+-
++#endif
+ int acquire_wake_lock(int, const char* id) {
+     ATRACE_CALL();
++	(void) id;
++#if 0
+     const auto& suspendService = getSystemSuspendServiceOnce();
+     if (!suspendService) {
+         return -1;
+@@ -60,10 +62,14 @@ int acquire_wake_lock(int, const char* id) {
+         }
+     }
+     return 0;
++#endif
++	return 1;
+ }
+ 
+ int release_wake_lock(const char* id) {
+     ATRACE_CALL();
++	(void) id;
++#if 0
+     std::lock_guard<std::mutex> l{gLock};
+     if (gWakeLockMap[id]) {
+         // Ignore errors on release() call since hwbinder driver will clean up the underlying object
+@@ -76,4 +82,6 @@ int release_wake_lock(const char* id) {
+         return 0;
+     }
+     return -1;
++#endif
++	return 1;
+ }

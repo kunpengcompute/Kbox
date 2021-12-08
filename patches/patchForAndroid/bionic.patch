@@ -1,0 +1,71 @@
+diff --git a/libc/Android.bp b/libc/Android.bp
+index a599028..7e6c610 100644
+--- a/libc/Android.bp
++++ b/libc/Android.bp
+@@ -2438,7 +2438,7 @@ cc_library_shared {
+         "bionic/scudo_wrapper.cpp",
+         "bionic/__set_errno.cpp",
+     ],
+-    cflags: ["-DUSE_SCUDO"],
++    //cflags: ["-DUSE_SCUDO"],
+     stl: "none",
+     system_shared_libs: [],
+ 
+diff --git a/libc/SYSCALLS.TXT b/libc/SYSCALLS.TXT
+index 772f0e7..66d6e60 100644
+--- a/libc/SYSCALLS.TXT
++++ b/libc/SYSCALLS.TXT
+@@ -321,6 +321,7 @@ int __ppoll:ppoll(pollfd*, unsigned int, timespec*, const sigset64_t*, size_t)
+ 
+ ssize_t process_vm_readv(pid_t, const struct iovec*, unsigned long, const struct iovec*, unsigned long, unsigned long)  all
+ ssize_t process_vm_writev(pid_t, const struct iovec*, unsigned long, const struct iovec*, unsigned long, unsigned long)  all
++int kcmp(pid_t, pid_t, int, unsigned long, unsigned long)  all
+ 
+ int quotactl(int, const char*, int, char*)  all
+ 
+diff --git a/libc/bionic/sysinfo.cpp b/libc/bionic/sysinfo.cpp
+index 1d1070e..a607d21 100644
+--- a/libc/bionic/sysinfo.cpp
++++ b/libc/bionic/sysinfo.cpp
+@@ -35,17 +35,19 @@
+ 
+ #include "private/get_cpu_count_from_string.h"
+ #include "private/ScopedReaddir.h"
+-
++/*
+ static bool __matches_cpuN(const char* s) {
+   // The %c trick is to ensure that we have the anchored match "^cpu[0-9]+$".
+   unsigned cpu;
+   char dummy;
+   return (sscanf(s, "cpu%u%c", &cpu, &dummy) == 1);
+ }
++*/
+ 
+ int get_nprocs_conf() {
+   // On x86 kernels you can use /proc/cpuinfo for this, but on ARM kernels offline CPUs disappear
+   // from there. This method works on both.
++  /*
+   ScopedReaddir reader("/sys/devices/system/cpu");
+   if (reader.IsBad()) {
+     return 1;
+@@ -58,6 +60,20 @@ int get_nprocs_conf() {
+       ++result;
+     }
+   }
++  */
++  int result = 1;
++  FILE *file = fopen("/proc/cpuinfo", "r");
++  if (file != nullptr) {
++    char *line;
++    constexpr int maxLineLength = 512;
++    char buf[maxLineLength] = {0};
++    while ((line = fgets(buf, maxLineLength, file)) != nullptr) {
++      if (strncmp(line, "processor", strlen("processor")) == 0) {
++        ++result;
++      }
++    }
++    fclose(file);
++  }
+   return result;
+ }
+ 
