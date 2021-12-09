@@ -1,0 +1,339 @@
+diff --git a/cmds/dumpstate/dumpstate.cpp b/cmds/dumpstate/dumpstate.cpp
+index 5de4077..2f4e02d 100644
+--- a/cmds/dumpstate/dumpstate.cpp
++++ b/cmds/dumpstate/dumpstate.cpp
+@@ -2088,7 +2088,7 @@ static void PrepareToWriteToFile() {
+         "Screenshot path: %s\n",
+         destination.c_str(), ds.base_name_.c_str(), ds.name_.c_str(), ds.log_path_.c_str(),
+         ds.tmp_path_.c_str(), ds.screenshot_path_.c_str());
+-
++#if 0
+     if (ds.options_->do_zip_file) {
+         ds.path_ = ds.GetPath(".zip");
+         MYLOGD("Creating initial .zip file (%s)\n", ds.path_.c_str());
+@@ -2101,6 +2101,7 @@ static void PrepareToWriteToFile() {
+         }
+         ds.AddTextZipEntry("version.txt", ds.version_);
+     }
++#endif
+ }
+ 
+ /*
+diff --git a/cmds/installd/InstalldNativeService.cpp b/cmds/installd/InstalldNativeService.cpp
+index 3472727..815cd8d 100644
+--- a/cmds/installd/InstalldNativeService.cpp
++++ b/cmds/installd/InstalldNativeService.cpp
+@@ -304,6 +304,12 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */
+  */
+ static int restorecon_app_data_lazy(const std::string& path, const std::string& seInfo, uid_t uid,
+         bool existing) {
++    (void) path;
++    (void) seInfo;
++    (void) uid;
++    (void) existing;
++    return 0;
++#ifdef ENABLE_SELINUX_RESTORECON
+     int res = 0;
+     char* before = nullptr;
+     char* after = nullptr;
+@@ -345,6 +351,7 @@ done:
+     free(before);
+     free(after);
+     return res;
++#endif
+ }
+ 
+ static int restorecon_app_data_lazy(const std::string& parent, const char* name,
+@@ -407,6 +414,7 @@ static bool prepare_app_profile_dir(const std::string& packageName, int32_t appI
+ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
+         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
+         const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return) {
++	(void) seInfo;
+     ENFORCE_UID(AID_SYSTEM);
+     CHECK_ARGUMENT_UUID(uuid);
+     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+@@ -429,8 +437,8 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
+ 
+     if (flags & FLAG_STORAGE_CE) {
+         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
+-        bool existing = (access(path.c_str(), F_OK) == 0);
+-
++        // bool existing = (access(path.c_str(), F_OK) == 0);
++        bool existing = true;
+         if (prepare_app_dir(path, targetMode, uid) ||
+                 prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
+                 prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
+@@ -460,7 +468,8 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
+     }
+     if (flags & FLAG_STORAGE_DE) {
+         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
+-        bool existing = (access(path.c_str(), F_OK) == 0);
++        // bool existing = (access(path.c_str(), F_OK) == 0);
++        bool existing = true;
+ 
+         if (prepare_app_dir(path, targetMode, uid) ||
+                 prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
+diff --git a/libs/dumputils/dump_utils.cpp b/libs/dumputils/dump_utils.cpp
+index 0477801..79cf988 100644
+--- a/libs/dumputils/dump_utils.cpp
++++ b/libs/dumputils/dump_utils.cpp
+@@ -35,7 +35,7 @@ static const char* native_processes_to_dump[] = {
+         "/system/bin/mediaserver",
+         "/system/bin/netd",
+         "/system/bin/vold",
+-        "/system/bin/sdcard",
++        // "/system/bin/sdcard", // dump will make sdcard crash
+         "/system/bin/statsd",
+         "/system/bin/surfaceflinger",
+         "/system/bin/vehicle_network_service",
+diff --git a/libs/gui/BufferQueueProducer.cpp b/libs/gui/BufferQueueProducer.cpp
+index a317aaf..95f98ac 100644
+--- a/libs/gui/BufferQueueProducer.cpp
++++ b/libs/gui/BufferQueueProducer.cpp
+@@ -42,6 +42,8 @@
+ 
+ #include <system/window.h>
+ 
++extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
++
+ namespace android {
+ 
+ static constexpr uint32_t BQ_LAYER_COUNT = 1;
+@@ -97,6 +99,9 @@ status_t BufferQueueProducer::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
+ status_t BufferQueueProducer::setMaxDequeuedBufferCount(
+         int maxDequeuedBuffers) {
+     ATRACE_CALL();
++    if (maxDequeuedBuffers < 1) {
++        maxDequeuedBuffers = 1;
++    }
+     BQ_LOGV("setMaxDequeuedBufferCount: maxDequeuedBuffers = %d",
+             maxDequeuedBuffers);
+ 
+@@ -368,7 +373,7 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
+         }
+ 
+         if (mCore->mConnectedApi == BufferQueueCore::NO_CONNECTED_API) {
+-            BQ_LOGE("dequeueBuffer: BufferQueue has no connected producer");
++//            BQ_LOGE("dequeueBuffer: BufferQueue has no connected producer");
+             return NO_INIT;
+         }
+     } // Autolock scope
+@@ -551,20 +556,29 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
+         returnFlags |= BUFFER_NEEDS_REALLOCATION;
+     }
+ 
+-    if (eglFence != EGL_NO_SYNC_KHR) {
+-        EGLint result = eglClientWaitSyncKHR(eglDisplay, eglFence, 0,
+-                1000000000);
+-        // If something goes wrong, log the error, but return the buffer without
+-        // synchronizing access to it. It's too late at this point to abort the
+-        // dequeue operation.
+-        if (result == EGL_FALSE) {
+-            BQ_LOGE("dequeueBuffer: error %#x waiting for fence",
+-                    eglGetError());
+-        } else if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+-            BQ_LOGE("dequeueBuffer: timeout waiting for fence");
+-        }
+-        eglDestroySyncKHR(eglDisplay, eglFence);
+-    }
++
++   if (eglFence != EGL_NO_SYNC_KHR) {
++
++	const char* exts = eglQueryStringImplementationANDROID(eglDisplay, EGL_EXTENSIONS);
++	bool mNative = exts && strstr(exts, "EGL_ANDROID_native_fence_sync");
++
++	if (mNative) {
++
++        	EGLint result = eglClientWaitSyncKHR(eglDisplay, eglFence, 0,
++                	1000000000);
++        	// If something goes wrong, log the error, but return the buffer without
++        	// synchronizing access to it. It's too late at this point to abort the
++        	// dequeue operation.
++        	if (result == EGL_FALSE) {
++            		BQ_LOGE("dequeueBuffer: error %#x waiting for fence",
++                    			eglGetError());
++        	} else if (result == EGL_TIMEOUT_EXPIRED_KHR) {
++            		BQ_LOGE("dequeueBuffer: timeout waiting for fence");
++        	}
++        		eglDestroySyncKHR(eglDisplay, eglFence);
++  	}  
++  } 
++  
+ 
+     BQ_LOGV("dequeueBuffer: returning slot=%d/%" PRIu64 " buf=%p flags=%#x",
+             *outSlot,
+diff --git a/opengl/libs/EGL/Loader.cpp b/opengl/libs/EGL/Loader.cpp
+index 038a432..7608320 100644
+--- a/opengl/libs/EGL/Loader.cpp
++++ b/opengl/libs/EGL/Loader.cpp
+@@ -263,6 +263,7 @@ void* Loader::open(egl_connection_t* cnx)
+     setEmulatorGlesValue();
+ 
+     // Check if we should use ANGLE early, so loading each driver doesn't require repeated queries.
++	/*
+     if (android::GraphicsEnv::getInstance().shouldUseAngle()) {
+         cnx->shouldUseAngle = true;
+     } else {
+@@ -314,11 +315,15 @@ void* Loader::open(egl_connection_t* cnx)
+         android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL,
+                                                             false, systemTime() - openTime);
+     }
+-
++    */
++	driver_t* hnd = attempt_to_load_system_driver(cnx, nullptr, true);
++	LOG_ALWAYS_FATAL_IF(!hnd,
++					"couldn't load mesa EGL wrapper libraries");
++    /*
+     LOG_ALWAYS_FATAL_IF(!hnd,
+                         "couldn't find an OpenGL ES implementation, make sure you set %s or %s",
+                         HAL_SUBNAME_KEY_PROPERTIES[0], HAL_SUBNAME_KEY_PROPERTIES[1]);
+-
++    */
+     if (!cnx->libEgl) {
+         cnx->libEgl = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
+     }
+@@ -436,6 +441,13 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
+     class MatchFile {
+     public:
+         static std::string find(const char* libraryName, const bool exact) {
++			std::string result;
++#if defined(__LP64__)
++            result = "/vendor/lib64/egl/libGLES_mesa.so";
++#else
++            result = "/vendor/lib/egl/libGLES_mesa.so";
++#endif
++			return result;
+             const char* const searchPaths[] = {
+ #if defined(__LP64__)
+                     "/vendor/lib64/egl",
+@@ -508,7 +520,6 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
+         return nullptr;
+     }
+     const char* const driver_absolute_path = absolutePath.c_str();
+-
+     // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
+     // the original routine when the namespace does not exist.
+     // See /system/core/rootdir/etc/ld.config.txt for the configuration of the
+diff --git a/services/surfaceflinger/BufferQueueLayer.cpp b/services/surfaceflinger/BufferQueueLayer.cpp
+index eb1bf66..86a316c 100644
+--- a/services/surfaceflinger/BufferQueueLayer.cpp
++++ b/services/surfaceflinger/BufferQueueLayer.cpp
+@@ -104,10 +104,12 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
+ 
+     // Ignore timestamps more than a second in the future
+     const bool isPlausible = addedTime < (expectedPresentTime + s2ns(1));
++    /*
+     ALOGW_IF(!isPlausible,
+              "[%s] Timestamp %" PRId64 " seems implausible "
+              "relative to expectedPresent %" PRId64,
+              mName.string(), addedTime, expectedPresentTime);
++    */
+ 
+     const bool isDue = addedTime < expectedPresentTime;
+     return isDue || !isPlausible;
+diff --git a/services/surfaceflinger/CompositionEngine/src/RenderSurface.cpp b/services/surfaceflinger/CompositionEngine/src/RenderSurface.cpp
+index 3fcd9d1..a38b84b 100644
+--- a/services/surfaceflinger/CompositionEngine/src/RenderSurface.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/RenderSurface.cpp
+@@ -146,8 +146,8 @@ sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
+     status_t result = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buffer, &fd);
+ 
+     if (result != NO_ERROR) {
+-        ALOGE("ANativeWindow::dequeueBuffer failed for display [%s] with error: %d",
+-              mDisplay.getName().c_str(), result);
++//        ALOGE("ANativeWindow::dequeueBuffer failed for display [%s] with error: %d",
++//              mDisplay.getName().c_str(), result);
+         // Return fast here as we can't do much more - any rendering we do
+         // now will just be wrong.
+         return mGraphicBuffer;
+diff --git a/services/surfaceflinger/Scheduler/DispSync.h b/services/surfaceflinger/Scheduler/DispSync.h
+index 3e33c7e..a2d45ab 100644
+--- a/services/surfaceflinger/Scheduler/DispSync.h
++++ b/services/surfaceflinger/Scheduler/DispSync.h
+@@ -205,7 +205,7 @@ private:
+ 
+     // mPeriod is the computed period of the modeled vsync events in
+     // nanoseconds.
+-    nsecs_t mPeriod;
++    nsecs_t mPeriod = 0;
+ 
+     // mIntendedPeriod is the intended period of the modeled vsync events in
+     // nanoseconds. Under ideal conditions this should be similar if not the
+@@ -220,24 +220,24 @@ private:
+ 
+     // mPhase is the phase offset of the modeled vsync events.  It is the
+     // number of nanoseconds from time 0 to the first vsync event.
+-    nsecs_t mPhase;
++    nsecs_t mPhase = 0;
+ 
+     // mReferenceTime is the reference time of the modeled vsync events.
+     // It is the nanosecond timestamp of the first vsync event after a resync.
+-    nsecs_t mReferenceTime;
++    nsecs_t mReferenceTime = 0;
+ 
+     // mError is the computed model error.  It is based on the difference
+     // between the estimated vsync event times and those observed in the
+     // mPresentFences array.
+-    nsecs_t mError;
++    nsecs_t mError = 0;
+ 
+     // mZeroErrSamplesCount keeps track of how many times in a row there were
+     // zero timestamps available in the mPresentFences array.
+     // Used to sanity check that we are able to calculate the model error.
+-    size_t mZeroErrSamplesCount;
++    size_t mZeroErrSamplesCount = 0;
+ 
+     // Whether we have updated the vsync event model since the last resync.
+-    bool mModelUpdated;
++    bool mModelUpdated = false;
+ 
+     // These member variables are the state used during the resynchronization
+     // process to store information about the hardware vsync event times used
+@@ -245,14 +245,14 @@ private:
+     nsecs_t mResyncSamples[MAX_RESYNC_SAMPLES] = {0};
+     size_t mFirstResyncSample = 0;
+     size_t mNumResyncSamples = 0;
+-    int mNumResyncSamplesSincePresent;
++    int mNumResyncSamplesSincePresent = 0;
+ 
+     // These member variables store information about the present fences used
+     // to validate the currently computed model.
+     std::shared_ptr<FenceTime> mPresentFences[NUM_PRESENT_SAMPLES]{FenceTime::NO_FENCE};
+     size_t mPresentSampleOffset;
+ 
+-    int mRefreshSkipCount;
++    int mRefreshSkipCount = 0;
+ 
+     // mThread is the thread from which all the callbacks are called.
+     sp<DispSyncThread> mThread;
+@@ -262,11 +262,11 @@ private:
+ 
+     // This is the offset from the present fence timestamps to the corresponding
+     // vsync event.
+-    int64_t mPresentTimeOffset;
++    int64_t mPresentTimeOffset = 0;
+ 
+     // Ignore present (retire) fences if the device doesn't have support for the
+     // sync framework
+-    bool mIgnorePresentFences;
++    bool mIgnorePresentFences = false;
+ 
+     std::unique_ptr<Callback> mZeroPhaseTracer;
+ 
+diff --git a/services/surfaceflinger/Scheduler/EventThread.cpp b/services/surfaceflinger/Scheduler/EventThread.cpp
+index 9d1f777..c8c5aed 100644
+--- a/services/surfaceflinger/Scheduler/EventThread.cpp
++++ b/services/surfaceflinger/Scheduler/EventThread.cpp
+@@ -389,9 +389,10 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
+         } else {
+             // Generate a fake VSYNC after a long timeout in case the driver stalls. When the
+             // display is off, keep feeding clients at 60 Hz.
+-            const auto timeout = mState == State::SyntheticVSync ? 16ms : 1000ms;
++            //const auto timeout = mState == State::SyntheticVSync ? 16ms : 1000ms;
++            const auto timeout = 16ms;
+             if (mCondition.wait_for(lock, timeout) == std::cv_status::timeout) {
+-                ALOGW_IF(mState == State::VSync, "Faking VSYNC due to driver stall");
++                //ALOGW_IF(mState == State::VSync, "Faking VSYNC due to driver stall");
+ 
+                 LOG_FATAL_IF(!mVSyncState);
+                 mPendingEvents.push_back(makeVSync(mVSyncState->displayId,

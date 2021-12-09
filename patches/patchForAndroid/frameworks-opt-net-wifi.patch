@@ -1,0 +1,52 @@
+diff --git a/service/java/com/android/server/wifi/WifiServiceImpl.java b/service/java/com/android/server/wifi/WifiServiceImpl.java
+index 0afa317..41c2073 100644
+--- a/service/java/com/android/server/wifi/WifiServiceImpl.java
++++ b/service/java/com/android/server/wifi/WifiServiceImpl.java
+@@ -2459,6 +2459,7 @@ public class WifiServiceImpl extends BaseWifiService {
+     @Override
+     @Deprecated
+     public DhcpInfo getDhcpInfo() {
++		/*
+         enforceAccessPermission();
+         if (mVerboseLoggingEnabled) {
+             mLog.info("getDhcpInfo uid=%").c(Binder.getCallingUid()).flush();
+@@ -2492,7 +2493,16 @@ public class WifiServiceImpl extends BaseWifiService {
+         if (serverAddress != null) {
+             info.serverAddress = NetworkUtils.inetAddressToInt(serverAddress);
+         }
+-        info.leaseDuration = dhcpResults.leaseDuration;
++        info.leaseDuration = dhcpResults.leaseDuration;*/
++        Log.d(TAG, "getDhcpInfo() -> force return pre-defined info");
++        DhcpInfo info = new DhcpInfo();
++        info.ipAddress = NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("172.17.0.1"));
++        info.netmask = NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("255.255.255.0"));
++        info.gateway = NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("172.17.0.1"));
++        info.dns1 = NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("114.114.114.114"));
++        info.dns2 = NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("8.8.8.8"));
++        info.serverAddress = NetworkUtils.inetAddressToInt((Inet4Address) NetworkUtils.numericToInetAddress("172.17.0.1"));
++        info.leaseDuration = 1800;
+ 
+         return info;
+     }
+diff --git a/service/java/com/android/server/wifi/WifiSettingsStore.java b/service/java/com/android/server/wifi/WifiSettingsStore.java
+index 8d8d587..7bcb2ab 100644
+--- a/service/java/com/android/server/wifi/WifiSettingsStore.java
++++ b/service/java/com/android/server/wifi/WifiSettingsStore.java
+@@ -56,6 +56,7 @@ public class WifiSettingsStore {
+     }
+ 
+     public synchronized boolean isWifiToggleEnabled() {
++		/*
+         if (!mCheckSavedStateAtBoot) {
+             mCheckSavedStateAtBoot = true;
+             if (testAndClearWifiSavedState()) return true;
+@@ -65,7 +66,8 @@ public class WifiSettingsStore {
+             return mPersistWifiState == WIFI_ENABLED_AIRPLANE_OVERRIDE;
+         } else {
+             return mPersistWifiState != WIFI_DISABLED;
+-        }
++        }*/
++		return true;
+     }
+ 
+     /**

@@ -1,0 +1,17 @@
+diff --git a/ui/build/paths/config.go b/ui/build/paths/config.go
+index f4bb89f..3a6938c 100644
+--- a/ui/build/paths/config.go
++++ b/ui/build/paths/config.go
+@@ -106,9 +106,12 @@ var Configuration = map[string]PathConfig{
+ 	"timeout":  Allowed,
+ 	"tr":       Allowed,
+ 	"unzip":    Allowed,
++	"xgettext": Allowed,
+ 	"xz":       Allowed,
+ 	"zip":      Allowed,
+ 	"zipinfo":  Allowed,
++	"msgmerge": Allowed,
++	"msgfmt":   Allowed,
+ 
+ 	// Host toolchain is removed. In-tree toolchain should be used instead.
+ 	// GCC also can't find cc1 with this implementation.
