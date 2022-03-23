@@ -1,0 +1,105 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    vioser.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install vioser.inf PCI\VEN_1AF4&DEV_1003&SUBSYS_0003_INX_SUBSYS_VENDOR_ID&REV_00" or
+;                       "devcon install vioser.inf PCI\VEN_1AF4&DEV_1043&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
+;
+;--*/
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+CatalogFile=vioser.cat
+DriverPackageType = PlugAndPlay
+DriverPackageDisplayName = %VirtioSerial.DeviceDesc%
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+VirtioSerial_Device_CoInstaller_CopyFiles = 11
+
+[SourceDisksFiles]
+vioser.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+;*****************************************
+; vioser  Install Section
+;*****************************************
+
+[Manufacturer]
+%VENDOR%=VirtioSerial,NT$ARCH$
+
+[VirtioSerial.NT$ARCH$]
+;
+; Hw Ids are PCI\VEN_1AF4&DEV_1003&SUBSYS_0003_INX_SUBSYS_VENDOR_ID&REV_00
+;            PCI\VEN_1AF4&DEV_1043&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
+;
+%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_0003_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_1003
+%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1043&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1043
+
+[VirtioSerial_Device.NT]
+CopyFiles=Drivers_Dir
+
+[VirtioSerial_Device.NT.HW]
+AddReg=VirtioSerial_AddReg
+
+[VirtioSerial_AddReg]
+HKR,Interrupt Management,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,2
+
+[Drivers_Dir]
+vioser.sys
+
+;-------------- Service installation
+
+[VirtioSerial_Device.NT.Services]
+AddService = VirtioSerial, 0x00000002, VirtioSerial_Service_Inst
+
+; -------------- VirtioSerial driver install sections
+[VirtioSerial_Service_Inst]
+DisplayName    = %VirtioSerial.ServiceDesc%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\vioser.sys
+
+;--- VirtioSerial_Device Coinstaller installation ------
+;
+
+[VirtioSerial_Device.NT.CoInstallers]
+AddReg=VirtioSerial_Device_CoInstaller_AddReg
+CopyFiles=VirtioSerial_Device_CoInstaller_CopyFiles
+
+[VirtioSerial_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[VirtioSerial_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[VirtioSerial_Device.NT.Wdf]
+KmdfService =  VirtioSerial, VirtioSerial_wdfsect
+
+[VirtioSerial_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+VENDOR = "INX_COMPANY"
+DiskId1 = "INX_PREFIX_VIRTIOVirtIO Serial Installation Disk #1"
+VirtioSerial.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Serial Driver"
+VirtioSerial.ServiceDesc = "INX_PREFIX_VIRTIOVirtIO Serial Service"
