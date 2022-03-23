@@ -1,0 +1,86 @@
+<!--
+***********************************************************************************************
+Driver.Common.props
+Common property definitions used by all drivers:
+    $(_NT_TARGET_MAJ)
+    $(TargetOS)
+    $(TargetArch)
+    $(InfArch)
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+
+  <Import Project="Driver.Platform.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="Driver.Initial.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+    <!-- Define the legacy DDK directory required for downlevel targets -->
+    <DDKINSTALLROOT Condition="'$(DDKINSTALLROOT)' == ''">C:\WINDDK\</DDKINSTALLROOT>
+    <DDKVER Condition="'$(DDKVER)' == ''">7600.16385.1</DDKVER>
+    <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
+    <INF_ARCH_FOR_WIN10>6.3</INF_ARCH_FOR_WIN10>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Globals">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+
+  <!-- $(TargetArch) -->
+  <PropertyGroup Condition="'$(Platform)'=='Win32'">
+    <TargetArch>x86</TargetArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <TargetArch>amd64</TargetArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='ARM64'">
+    <TargetArch>ARM64</TargetArch>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(WIN10_INF_DIFX_COMPAT)'=='' OR '$(WIN10_INF_DIFX_COMPAT)'=='0'">
+    <INF_ARCH_FOR_WIN10>10.0</INF_ARCH_FOR_WIN10>
+  </PropertyGroup>
+
+  <!-- _NT_TARGET_MAJ is one of the components of driver version (always reflects target OS version) -->
+  <!-- $(TargetOS) -->
+  <!-- InfArch turns into the TargetOS inf file directive -->
+  <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
+    <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
+    <TargetOS>Win10</TargetOS>
+	<DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN10)</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release' OR '$(Configuration)'=='Win8.1 Debug'">
+    <_NT_TARGET_MAJ>63</_NT_TARGET_MAJ>
+    <TargetOS>Win8.1</TargetOS>
+    <InfArch>$(TargetArch).6.3</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Win8 Release' OR '$(Configuration)'=='Win8 Debug'">
+    <_NT_TARGET_MAJ>62</_NT_TARGET_MAJ>
+    <TargetOS>Win8</TargetOS>
+    <InfArch>$(TargetArch).6.2</InfArch>
+  </PropertyGroup>
+
+  <!-- WPP settings -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WppModuleName>$(TargetFileName)</WppModuleName>
+    </ClCompile>
+    <DriverSign>
+      <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+    </DriverSign>
+  </ItemDefinitionGroup>
+
+  <!-- Enable CETCompat for vs >= 2019 or EWDK >= 2004 -->
+  <ItemDefinitionGroup Condition="'$(CETCompatSupported)'=='true'">
+    <Link Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64' OR '$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+      <CETCompat>true</CETCompat>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- Import vendor specific properties -->
+  <Import Project="Driver.Vendor.props" />
+
+</Project>
