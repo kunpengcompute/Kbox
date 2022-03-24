@@ -2831,6 +2831,8 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
 VIOGPU_DISP_MODE gpu_disp_modes[16] =
 {
+    {1280, 720},
+#if 0
 #if NTDDI_VERSION > NTDDI_WINBLUE
     {640, 480},
     {800, 600},
@@ -2840,6 +2842,7 @@ VIOGPU_DISP_MODE gpu_disp_modes[16] =
     {1920, 1080},
 #if NTDDI_VERSION > NTDDI_WINBLUE
     {2560, 1600},
+#endif
 #endif
     {0, 0},
 };
