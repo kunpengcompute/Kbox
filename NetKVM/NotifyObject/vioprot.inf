@@ -82,7 +82,7 @@ netkvmno.dll,,,0x00004002     ; COPYFLG_NOSKIP | COPYFLG_IN_USE_RENAME
 netkvmp.exe,,,0x00004002      ; COPYFLG_NOSKIP | COPYFLG_IN_USE_RENAME
 
 [Strings]
-VENDOR = "INX_COMPANY"
-DiskDescription = "INX_PREFIX_VENDORVirtIO NetKVM Protocol Driver Disk"
-NETKVMP_Desc = "INX_PREFIX_VENDORVirtIO NetKVM Protocol Driver"
-NETKVMP_HelpText = "A driver to support SRIOV Failover for VirtIO network devices"
+VENDOR = "WinBox"
+DiskDescription = "Winbox Net Protocol Driver Disk"
+NETKVMP_Desc = "Winbox Net Protocol Driver"
+NETKVMP_HelpText = "A driver to support SRIOV Failover for WinBox network devices"
