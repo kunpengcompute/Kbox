@@ -79,9 +79,9 @@ HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLim
 [Strings]
 
 ;  *******Localizable Strings*******
-diskId1 = "Red Hat VirtIO GPU controller Installation Disk"
-VioGpuDod.DeviceDesc = "Red Hat VirtIO GPU DOD controller"
-RHEL = "Red Hat, Inc."
+diskId1 = "WinBox GPU controller Installation Disk"
+VioGpuDod.DeviceDesc = "WinBox GPU DOD controller"
+RHEL = "WinBox"
 
 ;  *******Non Localizable Strings*******
 SERVICE_BOOT_START = 0x0
