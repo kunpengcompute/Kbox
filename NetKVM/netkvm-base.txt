@@ -5,7 +5,7 @@
 ;Module Name:
 ;    netkvm.inf
 ;
-; VirtIO Ethernet Adapter
+; Ethernet Adapter
 ;
 ;-------------------------------------------------------------------------------
 
@@ -234,9 +234,9 @@ kvmnet6.CopyFiles = 12
 
 [Strings]
 VENDOR = "INX_COMPANY"
-kvmnet6.DeviceDesc        = "INX_PREFIX_VENDORVirtIO Ethernet Adapter"
-kvmnet6.Service.DispName    = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Service"
-DiskId1 = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Driver Disk #1"
+kvmnet6.DeviceDesc        = "INX_PREFIX_VENDOREthernet Adapter"
+kvmnet6.Service.DispName    = "INX_PREFIX_VENDOREthernet Adapter Service"
+DiskId1 = "INX_PREFIX_VENDOREthernet Adapter Driver Disk #1"
 NetworkAddress = "Assign MAC"
 Priority = "Init.Do802.1PQ"
 JumboPacket = "Jumbo Packet"
