@@ -184,5 +184,6 @@
     <Inf Include="$(SourceInfFile)" />
     <Inf Include="$(SourceInfFile)" />
     <Inf Include="$(SourceInfFile)" />
+    <Inf Include="$(SourceInfFile)" />
   </ItemGroup>
 </Project>
