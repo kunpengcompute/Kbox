@@ -49,9 +49,9 @@
 /*
  * rhel strings
  */
-#define VENDOR_VIRTIO_COPYRIGHT    "Copyright (C) " STRINGIFY(RHEL_COPYRIGHT_YEARS) " Red Hat, Inc."
-#define VENDOR_VIRTIO_COMPANY      "Red Hat,\040Inc."
-#define VENDOR_PREFIX              "Red Hat\040"
+#define VENDOR_VIRTIO_COPYRIGHT    "Copyright (C) " STRINGIFY(RHEL_COPYRIGHT_YEARS) " WinBox."
+#define VENDOR_VIRTIO_COMPANY      "WinBox."
+#define VENDOR_PREFIX              "WinBox\040"
 #define VENDOR_PRODUCT_PREFIX      VENDOR_PREFIX
 #define QEMU_PRODUCT_PREFIX        "QEMU\040"
 #define VENDOR_DESC_PREFIX         VENDOR_PREFIX

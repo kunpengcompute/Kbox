@@ -1,0 +1,23 @@
+﻿################################################################################
+# 此 .gitignore 文件已由 Microsoft(R) Visual Studio 自动创建。
+################################################################################
+
+/.vs/virtio-win/v16
+/NetKVM/ARM64/Win10Release/NetKVM-VS2015.tlog
+/NetKVM/ARM64/Win10Release/NetKVM-VS2015/netkvm.sys
+/NetKVM/ARM64/Win10Release/NetKVM-VS2015/netkvm.inf
+/NetKVM/ARM64/Win10Release/NetKVM-VS2015/netkvm.cat
+/NetKVM/ARM64/Win10Release
+/NetKVM/CoInstaller/Win10Release/ARM64
+/viogpu/Install/Win10/ARM64
+/viogpu/viogpuap/objfre_win10_arm64/arm64/viogpuap.tlog
+/viogpu/viogpuap/objfre_win10_arm64/arm64
+/VirtIO/objfre_win10_arm64/arm64
+/viogpu/viogpusc/objfre_win10_arm64/arm64
+/viogpu/viogpudo/objfre_win10_arm64/arm64
+/NetKVM/Install/Win10/ARM64
+/NetKVM/Mof
+/viogpu/viogpudo/RCb07340
+/viogpu/viogpudo/RCa07340
+/viogpu/viogpudo/ARM64/Win8Release/viogpudo.log
+/viogpu/viogpudo/ARM64/Win8Release
