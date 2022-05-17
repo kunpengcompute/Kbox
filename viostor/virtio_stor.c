@@ -756,7 +756,7 @@ VirtIoHwInitialize(
     adaptExt->inquiry_data.DeviceType   = DIRECT_ACCESS_DEVICE;
     adaptExt->inquiry_data.Wide32Bit    = 1;
     adaptExt->inquiry_data.AdditionalLength = 91;
-    StorPortMoveMemory(&adaptExt->inquiry_data.VendorId, "Red Hat ", sizeof("Red Hat "));
+    StorPortMoveMemory(&adaptExt->inquiry_data.VendorId, "WinBox ", sizeof("WinBox "));
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
