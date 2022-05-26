@@ -8,11 +8,11 @@ RHEL inf substitutions and versioning used by all drivers.
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
   <PropertyGroup>
     <!-- Second component of driver version -->
-    <_RHEL_RELEASE_VERSION_ Condition="'$(_RHEL_RELEASE_VERSION_)' == ''">0</_RHEL_RELEASE_VERSION_>
+    <_RHEL_RELEASE_VERSION_ Condition="'$(_RHEL_RELEASE_VERSION_)' == ''">1</_RHEL_RELEASE_VERSION_>
     <!-- Third component of driver version -->
-    <_BUILD_MAJOR_VERSION_ Condition="'$(_BUILD_MAJOR_VERSION_)' == ''">1</_BUILD_MAJOR_VERSION_>
+    <_BUILD_MAJOR_VERSION_ Condition="'$(_BUILD_MAJOR_VERSION_)' == ''">0</_BUILD_MAJOR_VERSION_>
     <!-- Fourth component of driver version -->
-    <_BUILD_MINOR_VERSION_ Condition="'$(_BUILD_MINOR_VERSION_)' == ''">1</_BUILD_MINOR_VERSION_>
+    <_BUILD_MINOR_VERSION_ Condition="'$(_BUILD_MINOR_VERSION_)' == ''">0</_BUILD_MINOR_VERSION_>
   </PropertyGroup>
 
   <PropertyGroup>
