@@ -24,12 +24,12 @@ import (
 	"strings"
 	"time"
 
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
 	"k8s.io/klog"
+
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const sleepTime = 10
@@ -39,6 +39,8 @@ var clientset *kubernetes.Clientset
 var support bool
 
 func Main() {
+	var err error
+
 	kubeconfig := flag.String("kubeconfig", "", "absolute path to the kubeconfig file (optional, if run in cluster)")
 	server := flag.String("server", "", "the relay server address")
 	caFile := flag.String("ca-file", "", "absolute path to the root certificate file")
@@ -57,7 +59,7 @@ func Main() {
 	}
 
 	// creates the clientset
-	clientset, err := createClientSet(kubeconfig)
+	clientset, err = createClientSet(kubeconfig)
 	if err != nil {
 		klog.Errorf("Failed creates clientset: %v", err)
 		return
@@ -82,12 +84,17 @@ func Main() {
 
 	getWatcher(clientset).start()
 
-	if direct {
-		for support {
-			time.Sleep(sleepTime * time.Second)
+	agentRun(server, caFile, certFile, keyFile, serverName)
+}
+
+func agentRun(server, caFile, certFile, keyFile, serverName *string) {
+	for {
+		if !support {
+			break
 		}
-	} else {
-		for support {
+		if direct {
+			time.Sleep(sleepTime * time.Second)
+		} else {
 			if err := startClient(*server, *caFile, *certFile, *keyFile, *serverName); err != nil {
 				klog.Errorf("Client error: %v", err)
 			}
