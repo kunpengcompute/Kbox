@@ -1,10 +1,27 @@
+/*
+Copyright (c) Huawei Technologies Co., Ltd. 2023-2023. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package agent
 
 import (
 	"context"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sclient "k8s.io/client-go/kubernetes"
 	"os"
+
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"k8s.io/klog"
 )
@@ -12,11 +29,11 @@ import (
 const mpamLabel = "MPAM"
 
 // labelNodeMPAM label a node to indicate if it supports MPAM
-func labelNodeMPAM(k8sCli *k8sclient.Clientset) bool {
-	support := true
+func labelNodeMPAM(k8sCli *kubernetes.Clientset) bool {
+	support = true
 
 	// label the node
-	node, err := k8sCli.CoreV1().Nodes().Get(context.TODO(), nodeName, meta_v1.GetOptions{})
+	node, err := k8sCli.CoreV1().Nodes().Get(context.TODO(), nodeName, meta.GetOptions{})
 	if err != nil || node == nil {
 		klog.Errorf("Failed to get node: %v", err)
 		klog.Warning("please ensure environment variable NODE_NAME has been set!")
@@ -37,7 +54,7 @@ func labelNodeMPAM(k8sCli *k8sclient.Clientset) bool {
 		}
 	}
 
-	k8sCli.CoreV1().Nodes().Update(context.TODO(), node, meta_v1.UpdateOptions{})
+	k8sCli.CoreV1().Nodes().Update(context.TODO(), node, meta.UpdateOptions{})
 
 	return support
 }
