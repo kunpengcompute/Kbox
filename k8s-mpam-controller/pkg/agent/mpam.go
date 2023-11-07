@@ -105,7 +105,7 @@ func cleanResctrlGroup(groups []string) {
 	}
 	for _, fi := range fis {
 		if !fi.IsDir() {
-			klog.Warning("fi is not a dir")
+			klog.Warning(fi.Name() + " is not a dir")
 			continue
 		}
 		found := false
@@ -214,7 +214,13 @@ func applyConfig(data *configData) {
 				groups := val.(interface{}).(map[string]interface{})
 				for grp, mpamconf := range groups {
 					if len(grp) > maxGroupnameLen {
-						klog.Warning("max len of group name is %v", maxGroupnameLen)
+						klog.Warning("max len of group name is ", maxGroupnameLen)
+						continue
+					}
+
+					if mpamconf == nil {
+						klog.Warning("mpamconf is nil")
+						mpamGroups = append(mpamGroups, grp)
 						continue
 					}
 
@@ -222,7 +228,7 @@ func applyConfig(data *configData) {
 					for _, v := range rc {
 						rcdata := v.(interface{}).(string)
 						if !checkConfig(rcdata) {
-							klog.Warning("config %v is not right, please chck config", rcdata)
+							klog.Errorf("config %v is not right, please chck config", rcdata)
 							continue
 						}
 						updateResctrlGroup(filepath.Join(resctrlRoot, grp), rcdata)
@@ -236,9 +242,8 @@ func applyConfig(data *configData) {
 	}
 
 	if len(mpamGroups) > num_closids {
-		klog.Warning("The number of groups to be created exceeds the upper limit,"+
+		klog.Errorf("The number of groups to be created exceeds the upper limit,"+
 			"only %v groups can be created", num_closids)
-		mpamGroups = mpamGroups[:num_closids]
 	}
 
 	cleanResctrlGroup(mpamGroups)
