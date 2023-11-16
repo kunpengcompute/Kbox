@@ -181,7 +181,6 @@ func (w *watcher) watchGroupConfigMap(group string) {
 		}
 
 		klog.Warning("seems group configMap watcher is closed, going to restart ...")
-		w.watchGroupConfigMap(group)
 		klog.Warning("group configMap watcher is restarted")
 
 	}(k8w.ResultChan(), group)
@@ -233,6 +232,11 @@ func (w *watcher) start() {
 
 	if !getCbmmask() {
 		klog.Errorf("get cbm_mask failed, please ensure resctrl fs is mounted")
+		return
+	}
+
+	if !getMinBandwidth() {
+		klog.Errorf("get min_bandwidth failed, please ensure resctrl fs is mounted")
 		return
 	}
 
