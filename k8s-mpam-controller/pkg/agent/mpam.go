@@ -37,11 +37,13 @@ const cgroupCpusetRoot = "/sys/fs/cgroup/cpuset/"
 const tasksFile = "tasks"
 const numclosidFile = "info/L3/num_closids"
 const cbmmaskFile = "info/L3/cbm_mask"
+const minBandwidthFile = "info/MB/min_bandwidth"
 const maxGroupnameLen = 64
 
 var num_closids int
 var cbm_mask string
 var max_cbm_num uint64
+var min_bandwidth int
 
 // getNumclosids gets the maximun number of mpam groups
 func getNumclosids() bool {
@@ -105,7 +107,6 @@ func cleanResctrlGroup(groups []string) {
 	}
 	for _, fi := range fis {
 		if !fi.IsDir() {
-			klog.Warning(fi.Name() + " is not a dir")
 			continue
 		}
 		found := false
@@ -143,6 +144,30 @@ func updateResctrlGroup(dir, data string) {
 	}
 }
 
+func getMinBandwidth() bool {
+	path := filepath.Join(resctrlRoot, minBandwidthFile)
+	if _, err := os.Stat(path); err != nil {
+		klog.Errorf("%q is not exist: %v", path, err)
+		klog.Warning("Please ensure mpam has been mounted")
+		return false
+	}
+
+	minBW, err := ioutil.ReadFile(path)
+	if err != nil {
+		klog.Errorf("Failed to read num_closids (%q): %v", path, err)
+		klog.Warning("Please ensure mpam has been mounted")
+		return false
+	}
+
+	if min_bandwidth, err = strconv.Atoi(strings.Replace(string(minBW), "\n", "", -1)); err != nil {
+		klog.Errorf("string to int failed: %v", err)
+		return false
+	}
+
+	klog.Info("min_bandwidth is: ", min_bandwidth)
+	return true
+}
+
 func checkDataIsValid(data []string, cfgItem string) bool {
 	if len(data) > 4 {
 		return false
@@ -159,7 +184,11 @@ func checkDataIsValid(data []string, cfgItem string) bool {
 			return false
 		}
 
-		if strings.HasPrefix(cfgItem, "L3") {
+		if cfgItem == "MBHDL" {
+			if cfg[1] != "0" && cfg[1] != "1" {
+				return false
+			}
+		} else if strings.HasPrefix(cfgItem, "L3") {
 			cache_num, err := strconv.ParseUint("0x"+cfg[1], 0, 0)
 			if err != nil {
 				return false
@@ -170,7 +199,7 @@ func checkDataIsValid(data []string, cfgItem string) bool {
 			}
 		} else if strings.HasPrefix(cfgItem, "MB") {
 			percent, err := strconv.Atoi(cfg[1])
-			if err != nil || (percent < 0 || percent > 100) {
+			if err != nil || (percent < min_bandwidth || percent > 100) {
 				return false
 			}
 		}
@@ -184,12 +213,89 @@ func checkConfig(rcdata string) bool {
 		return false
 	}
 
+	schemataFile := filepath.Join(resctrlRoot, resctrlSchemataFile)
+	var perm os.FileMode = 0644
+	schemata, err := os.OpenFile(schemataFile, os.O_RDONLY, perm)
+	if err != nil {
+		klog.Errorf("Failed to open %q: %v", schemataFile, err)
+		return false
+	}
+	defer schemata.Close()
+
+	var found = false
+	s := bufio.NewScanner(schemata)
+	for s.Scan() {
+		if strings.Split(s.Text(), ":")[0] == config[0] {
+			found = true
+			break
+		}
+	}
+	if s.Err() != nil {
+		klog.Errorf("Failed to read %q: %v", schemataFile, err)
+		return false
+	}
+
+	if !found {
+		return false
+	}
+
 	if !strings.HasPrefix(config[0], "L3") && !strings.HasPrefix(config[0], "MB") {
 		return false
 	}
 
 	data := strings.Split(config[1], ";")
 	return checkDataIsValid(data, config[0])
+}
+
+// generate full mpam config
+func generateFullConf(mpamconf interface{}) []interface{} {
+	var mpamFullCfg []interface{}
+
+	schemataFile := filepath.Join(resctrlRoot, resctrlSchemataFile)
+	var perm os.FileMode = 0644
+	schemata, err := os.OpenFile(schemataFile, os.O_RDONLY, perm)
+	if err != nil {
+		klog.Errorf("Failed to open %q: %v", schemataFile, err)
+		return nil
+	}
+	defer schemata.Close()
+
+	s := bufio.NewScanner(schemata)
+	for s.Scan() {
+		mpamFullCfg = append(mpamFullCfg, s.Text())
+	}
+	if s.Err() != nil {
+		klog.Errorf("Failed to read %q: %v", schemataFile, err)
+		return nil
+	}
+
+	rc, ok := mpamconf.(map[string]interface{})
+	if !ok {
+		klog.Warning("It's not ok for type map[string]interface{}")
+		return nil
+	}
+	for index, cfg := range mpamFullCfg {
+		cfgItem := strings.Split(cfg.(interface{}).(string), ":")[0]
+		for _, rcConf := range rc {
+			rcdata, ok := rcConf.(interface{}).(string)
+			if !ok {
+				klog.Warning("It's not ok for type map[string]interface{}")
+				continue
+			}
+			data := strings.Split(rcdata, ":")
+			if data[0] != cfgItem {
+				continue
+			}
+			if checkConfig(rcdata) {
+				mpamFullCfg[index] = rcdata
+			} else {
+				klog.Errorf("config %v is not right, please check config", rcdata)
+			}
+			break
+		}
+	}
+
+	return mpamFullCfg
 }
 
 func applyConfig(data *configData) {
@@ -219,18 +325,13 @@ func applyConfig(data *configData) {
 					}
 
 					if mpamconf == nil {
-						klog.Warning("mpamconf is nil")
-						mpamGroups = append(mpamGroups, grp)
+						klog.Warning("please check config")
 						continue
 					}
 
-					rc := mpamconf.(map[string]interface{})
-					for _, v := range rc {
-						rcdata := v.(interface{}).(string)
-						if !checkConfig(rcdata) {
-							klog.Errorf("config %v is not right, please chck config", rcdata)
-							continue
-						}
+					mpamFullCfg := generateFullConf(mpamconf)
+					for _, rcConf := range mpamFullCfg {
+						rcdata := rcConf.(interface{}).(string)
 						updateResctrlGroup(filepath.Join(resctrlRoot, grp), rcdata)
 					}
 					mpamGroups = append(mpamGroups, grp)
