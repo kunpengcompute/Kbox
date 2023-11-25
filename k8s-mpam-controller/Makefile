@@ -1,6 +1,6 @@
 all:
-#	go get -d -v ./...
-	go install -ldflags "-s -w" ./cmd/*
+	go get -d -v ./...
+	CGO_CFLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2 -O2" go install -buildmode=pie -ldflags "-s -linkmode 'external' -extldflags '-Wl,-z,now'" ./cmd/*
 
 # To build in docker envrionment you can run following cmd directly
 docker:
