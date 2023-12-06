@@ -287,7 +287,8 @@ func generateFullConf(mpamconf interface{}) []interface{} {
 				continue
 			}
 			if checkConfig(rcdata) {
-				mpamFullCfg[index] = rcdata
+				fullData = createFullData(rcdata, string(cfg))
+				mpamFullCfg[index] = fullData
 			} else {
 				klog.Errorf("config %v is not right, please check config", rcdata)
 			}
@@ -296,6 +297,30 @@ func generateFullConf(mpamconf interface{}) []interface{} {
 	}
 
 	return mpamFullCfg
+}
+
+func createFullData(rcdata, cfg string) string {
+	curCfg := strings.Split(strings.Split(rcdata, ":")[1], ";")
+	fullCfg := strings.Split(strings.Split(cfg, ":")[1], ";")
+
+	for _, numaCfg := range curCfg {
+		numaId, err := strconv.Atoi(strings.Split(numaCfg, "=")[0])
+		if err != nil {
+			klog.Errorf("createFullData error, please check config")
+			return rcdata
+		}
+		fullCfg[numaId] = numaCfg
+	}
+
+	finalCfg := strings.Split(rcdata, ":")[0] + ":"
+	for id, numaCfg := range fullCfg {
+		finalCfg += numaCfg
+		if id != len(fullCfg) -1 {
+			finalCfg += ";"
+		}
+	}
+
+	return finalCfg
 }
 
 func applyConfig(data *configData) {
@@ -342,7 +367,7 @@ func applyConfig(data *configData) {
 		}
 	}
 
-	if len(mpamGroups) > num_closids {
+	if len(mpamGroups) >= num_closids {
 		klog.Errorf("The number of groups to be created exceeds the upper limit,"+
 			"only %v groups can be created", num_closids)
 	}
