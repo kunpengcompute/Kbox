@@ -52,6 +52,8 @@ type watcher struct {
 	// the 'Data' field value of the ConfigMap named rc-config.group.{GROUP_NAME},
 	// otherwise it's the 'Data' field value of the ConfigMap named rc-config.default
 	groupCfg *configData
+
+	groupName string
 }
 
 var singleton_watcher *watcher
@@ -87,7 +89,10 @@ func (w *watcher) watchNode() {
 				if group != label {
 					group = label
 					klog.Infof("node group is set to %s", group)
-					w.watchGroupConfigMap(group)
+					w.Lock()
+					w.groupName = group
+					w.Unlock()
+					w.watchGroupConfigMap()
 				}
 			case watch.Deleted:
 				klog.Warning("our node is removed...")
@@ -136,16 +141,18 @@ func (w *watcher) watchNodeConfigMap() {
 	}(k8w.ResultChan())
 }
 
-func (w *watcher) watchGroupConfigMap(group string) {
+func (w *watcher) watchGroupConfigMap() {
 	if w.groupConfigMapWatch != nil {
 		w.groupConfigMapWatch.Stop()
 	}
 
 	// watch group ConfigMap
 	cmName := "rc-config.default"
-	if group != "" {
-		cmName = "rc-config.group." + group
+	w.Lock()
+	if w.groupName != "" {
+		cmName = "rc-config.group." + w.groupName
 	}
+	w.Unlock()
 	selector := meta.ListOptions{FieldSelector: "metadata.name=" + cmName}
 	k8w, err := w.k8sCli.CoreV1().ConfigMaps(configMapNamespace).Watch(context.TODO(), selector)
 	if err != nil {
@@ -156,7 +163,7 @@ func (w *watcher) watchGroupConfigMap(group string) {
 	w.groupConfigMapWatch = k8w
 	klog.Info("start watching ConfigMap " + cmName)
 
-	go func(ev <-chan watch.Event, group string) {
+	go func(ev <-chan watch.Event) {
 		for e := range ev {
 			switch e.Type {
 			case watch.Added, watch.Modified:
@@ -181,9 +188,10 @@ func (w *watcher) watchGroupConfigMap(group string) {
 		}
 
 		klog.Warning("seems group configMap watcher is closed, going to restart ...")
+		w.watchGroupConfigMap()
 		klog.Warning("group configMap watcher is restarted")
 
-	}(k8w.ResultChan(), group)
+	}(k8w.ResultChan())
 }
 
 func (w *watcher) watchPods() {
@@ -241,7 +249,7 @@ func (w *watcher) start() {
 	}
 
 	w.watchNodeConfigMap()
-	w.watchGroupConfigMap("")
+	w.watchGroupConfigMap()
 	w.watchNode()
 
 	if direct {

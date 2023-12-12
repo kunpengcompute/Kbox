@@ -287,7 +287,7 @@ func generateFullConf(mpamconf interface{}) []interface{} {
 				continue
 			}
 			if checkConfig(rcdata) {
-				fullData = createFullData(rcdata, string(cfg))
+				fullData := createFullData(rcdata, cfg.(interface{}).(string))
 				mpamFullCfg[index] = fullData
 			} else {
 				klog.Errorf("config %v is not right, please check config", rcdata)
