@@ -336,6 +336,8 @@ func applyConfig(data *configData) {
 		conf := make(map[string]interface{})
 		if err := yaml.Unmarshal([]byte(val), &conf); err != nil {
 			klog.Errorf("Failed to unmarshal configuration data: %v", err)
+			var yamlGroups []string
+			cleanResctrlGroup(yamlGroups)
 			return
 		}
 
