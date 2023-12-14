@@ -92,7 +92,9 @@ func (w *watcher) watchNode() {
 					w.Lock()
 					w.groupName = group
 					w.Unlock()
-					w.watchGroupConfigMap()
+					if w.groupConfigMapWatch != nil {
+						w.groupConfigMapWatch.Stop()
+					}
 				}
 			case watch.Deleted:
 				klog.Warning("our node is removed...")
@@ -142,9 +144,6 @@ func (w *watcher) watchNodeConfigMap() {
 }
 
 func (w *watcher) watchGroupConfigMap() {
-	if w.groupConfigMapWatch != nil {
-		w.groupConfigMapWatch.Stop()
-	}
 
 	// watch group ConfigMap
 	cmName := "rc-config.default"
