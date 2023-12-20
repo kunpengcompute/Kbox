@@ -198,9 +198,16 @@ func checkDataIsValid(data []string, cfgItem string) bool {
 				return false
 			}
 		} else if strings.HasPrefix(cfgItem, "MB") {
-			percent, err := strconv.Atoi(cfg[1])
-			if err != nil || (percent < min_bandwidth || percent > 100) {
-				return false
+			if cfgItem == "MBPRI" {
+				prio, err := strconv.Atoi(cfg[1])
+				if err != nil || (prio < 0 || prio > 7) {
+					return false
+				}
+			} else {
+				percent, err := strconv.Atoi(cfg[1])
+				if err != nil || (percent < min_bandwidth || percent > 100) {
+					return false
+				}
 			}
 		}
 	}
